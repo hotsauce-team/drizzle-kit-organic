@@ -1,4 +1,4 @@
-deno.jsonc
 data
 node_modules
 drizzle
+.test-patch
