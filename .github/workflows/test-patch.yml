@@ -49,9 +49,12 @@ jobs:
           path: |
             ~/.cache/deno
             ~/.deno
-          key: ${{ runner.os }}-deno-${{ hashFiles('deno.jsonc') }}
+          key: ${{ runner.os }}-deno-${{ hashFiles('deno.jsonc', 'deno.lock') }}
           restore-keys: |
             ${{ runner.os }}-deno-
+
+      - name: Install dependencies
+        run: deno install
 
       - name: Run patch test for drizzle-kit@${{ matrix.version }}
         run: deno run --allow-read=scripts,.test-patch,deno.jsonc --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts ${{ matrix.version }}
@@ -72,6 +75,9 @@ jobs:
         uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+
+      - name: Install dependencies
+        run: deno install
 
       - name: Run quick patch tests
         run: deno run --allow-read=scripts,.test-patch,deno.jsonc --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts --quick
