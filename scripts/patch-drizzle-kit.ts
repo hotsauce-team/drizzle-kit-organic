@@ -15,7 +15,9 @@ import { walk } from "@std/fs/walk";
 
 const NODE_MODULES = "./node_modules";
 const PATCH_MARKER = "// DRIZZLE-KIT-DENO-PATCHED-V10";
-const SUPPORTED_VERSIONS = ["0.30.6", "0.31.8"];
+
+/** Drizzle-kit versions that have been tested with this patch */
+export const SUPPORTED_VERSIONS = ["0.30.6", "0.31.8"];
 
 interface PatchResult {
   name: string;
@@ -403,4 +405,9 @@ var _getTmpdir = () => { if (!tmpdir) tmpdir = import_node_os2.default.tmpdir();
   }
 }
 
-await patchDrizzleKit();
+export { patchDrizzleKit };
+
+// Run when executed directly
+if (import.meta.main) {
+  await patchDrizzleKit();
+}

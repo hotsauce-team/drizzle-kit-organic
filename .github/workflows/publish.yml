@@ -1,0 +1,52 @@
+name: Publish to JSR
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Dry run (no actual publish)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write  # Required for JSR provenance
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Verify version matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          PACKAGE_VERSION=$(deno eval "const c = JSON.parse(await Deno.readTextFile('deno.jsonc').then(t => t.replace(/\/\/.*/g, ''))); console.log(c.version)")
+          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "❌ Tag version ($TAG_VERSION) does not match package version ($PACKAGE_VERSION)"
+            exit 1
+          fi
+          echo "✅ Version $TAG_VERSION matches"
+
+      - name: Run tests
+        run: deno task test --quick
+
+      - name: Publish to JSR (dry run)
+        if: github.event.inputs.dry-run == 'true'
+        run: deno publish --dry-run
+
+      - name: Publish to JSR
+        if: github.event.inputs.dry-run != 'true'
+        run: deno publish

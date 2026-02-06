@@ -1,7 +1,42 @@
-# Drizzle-Kit + Deno Demo
+# drizzle-kit-deno
 
-This folder demonstrates how to use **drizzle-kit** with **Deno** by patching
-the drizzle-kit binary for Deno compatibility.
+A patch to make **drizzle-kit** compatible with **Deno**.
+
+> ⚠️ **Warning:** This patch modifies drizzle-kit's bundled code. Only use in production if you understand exactly what the patch does. Review [scripts/patch-drizzle-kit.ts](scripts/patch-drizzle-kit.ts) before deploying.
+
+> ℹ️ **Supported commands:** Only `generate` and `migrate` are supported. Other drizzle-kit commands (`push`, `pull`, `studio`, etc.) have not been tested and will probably not work.
+
+## Installation
+
+```bash
+# In your Deno project with drizzle-kit installed:
+deno run -A jsr:@hotsauce-team/drizzle-kit-deno
+```
+
+Or add to your `deno.jsonc` tasks:
+
+```jsonc
+{
+  "tasks": {
+    "patch": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.8 jsr:@hotsauce-team/drizzle-kit-deno"
+  }
+}
+```
+
+## Quick Start
+
+See the [example/](example/) folder for a complete working example.
+
+```bash
+# 1. Install dependencies
+deno install
+
+# 2. Patch drizzle-kit
+deno run -A jsr:@hotsauce-team/drizzle-kit-deno
+
+# 3. Run drizzle-kit commands
+deno run --allow-read --allow-write --allow-env ./node_modules/drizzle-kit/bin.cjs generate
+```
 
 ## The Problem
 
@@ -28,48 +63,34 @@ A patch script that modifies drizzle-kit's bundled `bin.cjs` file to:
 
 - **JSR packages in schema** - Your schema files can import from JSR (`@std/*`, etc.) since Deno handles the imports natively
 
-## Files
+## Project Structure
 
-- `deno.jsonc` - Deno configuration with tasks and permission sets
-- `drizzle.config.ts` - Drizzle configuration file
-- `schema.ts` - Example database schema (demonstrates JSR imports)
-- `scripts/patch-drizzle-kit.ts` - The patch script
-
-## Setup
-
-### 1. Install dependencies
-
-```bash
-deno install
+```
+├── mod.ts                      # Library entry point
+├── scripts/
+│   ├── patch-drizzle-kit.ts    # The patch script
+│   └── test-patch.ts           # Test suite
+├── deno.jsonc                  # Library config
+└── example/                    # Example project
+    ├── deno.jsonc              # Example config with permission sets
+    ├── drizzle.config.ts       # Example drizzle config
+    └── schema.ts               # Example schema
 ```
 
-This downloads drizzle-kit and drizzle-orm to `node_modules/`.
+## Programmatic Usage
 
-### 2. Patch drizzle-kit
+```typescript
+import { patchDrizzleKit, SUPPORTED_VERSIONS } from "jsr:@hotsauce-team/drizzle-kit-deno";
 
-```bash
-deno task build
-```
-
-This runs the patch script which modifies `node_modules/.deno/drizzle-kit@X.X.X/node_modules/drizzle-kit/bin.cjs`.
-
-### 3. Generate migrations
-
-```bash
-deno task db:generate
-```
-
-### 4. Apply migrations
-
-```bash
-deno task db:migrate
+console.log("Supported versions:", SUPPORTED_VERSIONS);
+await patchDrizzleKit();
 ```
 
 ## How It Works
 
 ### Permission Sets
 
-The `deno.jsonc` defines permission sets to limit what drizzle-kit can access:
+The [example/deno.jsonc](example/deno.jsonc) defines permission sets to limit what drizzle-kit can access:
 
 ```jsonc
 "permissions": {
@@ -157,19 +178,19 @@ The test suite performs the following checks for each version:
 ### Run all tests locally
 
 ```bash
-deno task test:patch
+deno task test
 ```
 
 ### Test a specific version
 
 ```bash
-deno task test:patch 0.31.8
+deno task test 0.31.8
 ```
 
 ### Quick test (patch only, no runtime tests)
 
 ```bash
-deno task test:patch --quick
+deno task test:quick
 ```
 
 ### Test options

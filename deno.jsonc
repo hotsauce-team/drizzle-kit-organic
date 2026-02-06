@@ -1,79 +1,26 @@
 {
-  "tasks": {
-    // Step 1: After `deno install`, run this to patch drizzle-kit for Deno
-    "build": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.8 scripts/patch-drizzle-kit.ts",
-    
-    // Step 2: Generate migrations from schema changes
-    "db:generate": "DENO_TRACE_PERMISSIONS=1 deno run --permission-set=drizzle-kit ./node_modules/drizzle-kit/bin.cjs generate",
-    
-    // Step 3: Apply migrations to the database
-    "db:migrate": "DENO_TRACE_PERMISSIONS=1 deno run --permission-set=drizzle-kit ./node_modules/drizzle-kit/bin.cjs migrate",
-    
-    // Test the patch against multiple drizzle-kit versions
-    "test:patch": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/test-patch.ts",
-    "test:patch:quick": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/test-patch.ts --quick"
+  // JSR package configuration
+  "name": "@hotsauce-team/drizzle-kit-deno",
+  "version": "0.1.0",
+  "exports": "./mod.ts",
+  "publish": {
+    "include": [
+      "mod.ts",
+      "scripts/patch-drizzle-kit.ts",
+      "README.md",
+      "LICENSE"
+    ]
   },
-  "imports": {
-    "@electric-sql/pglite": "npm:@electric-sql/pglite@^0.3.15",
-    // NPM packages
-    "drizzle-kit": "npm:drizzle-kit@0.31.8",
-    "drizzle-orm": "npm:drizzle-orm@^0.45.1",
 
-    // Demo a jsr package in schems.ts
-    "@std/assert": "jsr:@std/assert@1",
-    
+  "tasks": {
+    // Test the patch against multiple drizzle-kit versions
+    "test": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/test-patch.ts",
+    "test:quick": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/test-patch.ts --quick"
+  },
+
+  "imports": {
     // Deno standard library (used by patch script and tests)
     "@std/fs": "jsr:@std/fs@1",
     "@std/cli": "jsr:@std/cli@1"
-  },
-  // Use local node_modules for npm packages (required for patching)
-  "nodeModulesDir": "auto",
-  
-  // Permission sets for running drizzle-kit with minimal permissions
-  "permissions": {
-    "drizzle-kit": {
-      "read": [
-        "./drizzle",           // Read existing migrations
-        "./drizzle.config.ts", // Read config file
-        "."                    // Read schema and project files
-      ],
-      "write": [
-        "./drizzle",           // Write new migrations
-        "./data"               // Write to local database (if using PGlite)
-      ],
-      "net": [
-        "db.prisma.io"         // Required for some introspection features
-      ],
-      "env": [
-        // Database connection
-        "DATABASE_URL",
-        
-        // drizzle-kit internals
-        "CI",
-        "TEST_CONFIG_PATH_PREFIX",
-        "USER",
-        "NODE_PG_FORCE_NATIVE",
-        
-        // PostgreSQL standard env vars
-        "PGUSER",
-        "PGPASSWORD",
-        "PGHOST",
-        "PGPORT",
-        "PGDATABASE",
-        "PGSSLMODE",
-        "PGBINARY",
-        "PGAPPNAME",
-        "PGCONNECT_TIMEOUT",
-        "PGPASSFILE",
-        "PGPASS_NO_DEESCAPE",
-        "PGOPTIONS",
-        "PGSERVICEFILE",
-        "PGCLIENT_ENCODING",
-        "PGREPLICATION",
-        
-        // Minimatch testing (checked at load time)
-        "__MINIMATCH_TESTING_PLATFORM__"
-      ]
-    }
   }
 }
