@@ -4,12 +4,12 @@
  *
  * @example Run directly
  * ```bash
- * deno run -A jsr:@hotsauce-team/drizzle-kit-deno
+ * deno run -A jsr:@hotsauce-team/drizzle-kit-deno-patch
  * ```
  *
  * @example Import and use programmatically
  * ```ts
- * import { patchDrizzleKit } from "jsr:@hotsauce-team/drizzle-kit-deno";
+ * import { patchDrizzleKit } from "jsr:@hotsauce-team/drizzle-kit-deno-patch";
  * await patchDrizzleKit();
  * ```
  */

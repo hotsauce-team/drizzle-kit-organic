@@ -4,7 +4,7 @@
     // deno install
 
     // Step 2: Patch drizzle-kit for Deno compatibility
-    "patch": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.8 jsr:@hotsauce-team/drizzle-kit-deno",
+    "patch": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.8 jsr:@hotsauce-team/drizzle-kit-deno-patch",
     
     // Step 3: Generate migrations from schema changes
     "db:generate": "deno run --permission-set=drizzle-kit ./node_modules/drizzle-kit/bin.cjs generate",

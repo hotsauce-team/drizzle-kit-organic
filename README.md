@@ -10,7 +10,7 @@ A patch to make **drizzle-kit** compatible with **Deno**.
 
 ```bash
 # In your Deno project with drizzle-kit installed:
-deno run -A jsr:@hotsauce-team/drizzle-kit-deno
+deno run -A jsr:@hotsauce-team/drizzle-kit-deno-patch
 ```
 
 Or add to your `deno.jsonc` tasks:
@@ -18,7 +18,7 @@ Or add to your `deno.jsonc` tasks:
 ```jsonc
 {
   "tasks": {
-    "patch": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.8 jsr:@hotsauce-team/drizzle-kit-deno"
+    "patch": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.8 jsr:@hotsauce-team/drizzle-kit-deno-patch"
   }
 }
 ```
@@ -32,7 +32,7 @@ See the [example/](example/) folder for a complete working example.
 deno install
 
 # 2. Patch drizzle-kit
-deno run -A jsr:@hotsauce-team/drizzle-kit-deno
+deno run -A jsr:@hotsauce-team/drizzle-kit-deno-patch
 
 # 3. Run drizzle-kit commands
 deno run --allow-read --allow-write --allow-env ./node_modules/drizzle-kit/bin.cjs generate
@@ -80,7 +80,7 @@ A patch script that modifies drizzle-kit's bundled `bin.cjs` file to:
 ## Programmatic Usage
 
 ```typescript
-import { patchDrizzleKit, SUPPORTED_VERSIONS } from "jsr:@hotsauce-team/drizzle-kit-deno";
+import { patchDrizzleKit, SUPPORTED_VERSIONS } from "jsr:@hotsauce-team/drizzle-kit-deno-patch";
 
 console.log("Supported versions:", SUPPORTED_VERSIONS);
 await patchDrizzleKit();
