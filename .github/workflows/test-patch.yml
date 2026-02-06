@@ -54,7 +54,7 @@ jobs:
             ${{ runner.os }}-deno-
 
       - name: Run patch test for drizzle-kit@${{ matrix.version }}
-        run: deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/test-patch.ts ${{ matrix.version }}
+        run: deno run --allow-read=scripts,.test-patch --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts ${{ matrix.version }}
         env:
           DENO_DIR: ~/.cache/deno
 
@@ -74,7 +74,7 @@ jobs:
           deno-version: v2.x
 
       - name: Run quick patch tests
-        run: deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/test-patch.ts --quick
+        run: deno run --allow-read=scripts,.test-patch --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts --quick
         env:
           DENO_DIR: ~/.cache/deno
 
