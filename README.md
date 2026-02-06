@@ -89,7 +89,7 @@ This allows fine-grained control over file system access, environment variables,
 The patch script:
 
 1. **Finds** the drizzle-kit binary in `node_modules/`
-2. **Checks** the version (tested with 0.30.4, 0.30.5, 0.30.6)
+2. **Checks** the version (tested with 0.30.6, 0.31.8)
 3. **Applies patches** using regex replacements
 4. **Marks** the file as patched to avoid re-patching
 5. **Reports** which patches succeeded or failed
@@ -130,11 +130,68 @@ The `--permission-set=drizzle-kit` flag uses the permissions defined in `deno.js
 
 ## Supported drizzle-kit versions
 
-- 0.30.4
-- 0.30.5
 - 0.30.6
+- 0.31.8 (recommended)
 
 The patch script will warn but attempt to patch other versions.
+
+## Testing
+
+A comprehensive test suite verifies the patch works across all supported drizzle-kit versions.
+
+### Testing Strategy
+
+The test suite performs the following checks for each version:
+
+1. **Setup** - Creates an isolated test environment with a minimal Deno project
+2. **Install** - Installs the specific drizzle-kit version via `deno install`
+3. **Patch** - Applies the patch script and verifies it completes successfully
+4. **Verify Marker** - Checks that the patch marker is present in `bin.cjs`
+5. **Verify All Patches** - Confirms each individual patch was applied:
+   - Critical patches (must succeed): `walkForTsConfig`, `safeRegister`, `config loading`, `CLI exit handler`
+   - Optional patches (may vary by version): color stubs, dotenv stubs, homedir/tmpdir deferrals
+6. **Runtime Tests** (full mode only):
+   - `drizzle-kit --help` - Verifies basic CLI functionality
+   - `drizzle-kit generate` - Verifies config and schema loading works
+
+### Run all tests locally
+
+```bash
+deno task test:patch
+```
+
+### Test a specific version
+
+```bash
+deno task test:patch 0.31.8
+```
+
+### Quick test (patch only, no runtime tests)
+
+```bash
+deno task test:patch --quick
+```
+
+### Test options
+
+```
+Options:
+  --quick, -q    Quick test (only verify patch applies, skip runtime tests)
+  --keep, -k     Keep test directories after completion
+  --help, -h     Show this help message
+```
+
+### CI
+
+Tests run automatically via GitHub Actions:
+
+- **On push to `main`** - Full tests for all supported versions (when patch files change)
+- **On pull requests** - Full tests in parallel matrix + quick smoke test
+- **Manual trigger** - Can be run manually via workflow dispatch
+
+Each version is tested in parallel using a matrix strategy for faster feedback.
+
+See [.github/workflows/test-patch.yml](.github/workflows/test-patch.yml) for the CI configuration.
 
 ## Troubleshooting
 

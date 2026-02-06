@@ -1,0 +1,97 @@
+name: Test Patch Compatibility
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/patch-drizzle-kit.ts'
+      - 'scripts/test-patch.ts'
+      - '.github/workflows/test-patch.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/patch-drizzle-kit.ts'
+      - 'scripts/test-patch.ts'
+      - '.github/workflows/test-patch.yml'
+  workflow_dispatch:
+    inputs:
+      versions:
+        description: 'Versions to test (comma-separated, or "all" for all supported)'
+        required: false
+        default: 'all'
+      quick:
+        description: 'Quick mode (patch only, skip runtime tests)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test-patch:
+    name: Test Patch - drizzle-kit@${{ matrix.version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ['0.30.6', '0.31.8']
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Cache Deno dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/deno
+            ~/.deno
+          key: ${{ runner.os }}-deno-${{ hashFiles('deno.jsonc') }}
+          restore-keys: |
+            ${{ runner.os }}-deno-
+
+      - name: Run patch test for drizzle-kit@${{ matrix.version }}
+        run: deno task test:patch ${{ matrix.version }}
+        env:
+          DENO_DIR: ~/.cache/deno
+
+  # Optional: Run quick tests for all versions in a single job
+  test-patch-quick:
+    name: Quick Test - All Versions
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Run quick patch tests
+        run: deno task test:patch:quick
+        env:
+          DENO_DIR: ~/.cache/deno
+
+  # Summary job that depends on all matrix jobs
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [test-patch]
+    if: always()
+    
+    steps:
+      - name: Check test results
+        run: |
+          if [[ "${{ needs.test-patch.result }}" == "success" ]]; then
+            echo "✅ All patch compatibility tests passed!"
+            exit 0
+          else
+            echo "❌ Some patch compatibility tests failed"
+            exit 1
+          fi

@@ -15,7 +15,7 @@ import { walk } from "@std/fs/walk";
 
 const NODE_MODULES = "./node_modules";
 const PATCH_MARKER = "// DRIZZLE-KIT-DENO-PATCHED-V10";
-const SUPPORTED_VERSIONS = ["0.30.4", "0.30.5", "0.30.6"];
+const SUPPORTED_VERSIONS = ["0.30.6", "0.31.8"];
 
 interface PatchResult {
   name: string;
