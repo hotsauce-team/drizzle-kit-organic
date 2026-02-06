@@ -57,9 +57,7 @@ jobs:
         run: deno install
 
       - name: Run patch test for drizzle-kit@${{ matrix.version }}
-        run: deno run --allow-read=scripts,.test-patch,deno.jsonc --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts ${{ matrix.version }}
-        env:
-          DENO_DIR: ~/.cache/deno
+        run: deno run -A scripts/test-patch.ts ${{ matrix.version }}
 
   # Optional: Run quick tests for all versions in a single job
   test-patch-quick:
@@ -80,9 +78,7 @@ jobs:
         run: deno install
 
       - name: Run quick patch tests
-        run: deno run --allow-read=scripts,.test-patch,deno.jsonc --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts --quick
-        env:
-          DENO_DIR: ~/.cache/deno
+        run: deno run -A scripts/test-patch.ts --quick
 
   # Summary job that depends on all matrix jobs
   test-summary:
