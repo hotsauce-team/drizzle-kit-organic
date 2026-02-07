@@ -89,6 +89,7 @@ async function setupTestEnvironment(version: string): Promise<string> {
     imports: {
       "drizzle-kit": `npm:drizzle-kit@${version}`,
       "drizzle-orm": "npm:drizzle-orm@^0.45.1",
+      "@electric-sql/pglite": "npm:@electric-sql/pglite@^0.3.15",
       "@std/fs": "jsr:@std/fs@1",
     },
     nodeModulesDir: "auto",
@@ -118,12 +119,24 @@ export default defineConfig({
   schema: "./schema.ts",
   out: "./drizzle",
   dialect: "postgresql",
+  // Use PGlite driver for local dev so tests are self-contained
+  ...(Deno.env.get("DATABASE_URL") ? {} : { driver: "pglite" as const }),
+  dbCredentials: {
+    url: Deno.env.get("DATABASE_URL") || "file:./data",
+  },
 });
 `;
   await Deno.writeTextFile(`${versionDir}/drizzle.config.ts`, config);
 
   // Create drizzle output directory
   await Deno.mkdir(`${versionDir}/drizzle`, { recursive: true });
+
+  // Create local DB storage directory for PGlite
+  await Deno.mkdir(`${versionDir}/data`, { recursive: true });
+
+  // Copy DB verification script into the test environment
+  const verifyDbScript = await Deno.readTextFile("scripts/verify-db.ts");
+  await Deno.writeTextFile(`${versionDir}/verify-db.ts`, verifyDbScript);
 
   return versionDir;
 }
@@ -412,6 +425,60 @@ async function testDrizzleKitGenerate(testDir: string): Promise<StepResult> {
   };
 }
 
+async function testDrizzleKitMigrate(testDir: string): Promise<StepResult> {
+  // Test that drizzle-kit migrate works (applies migrations to local DB)
+  const result = await runCommand(
+    [
+      "deno",
+      "run",
+      "--allow-read",
+      "--allow-env",
+      "--allow-write",
+      "--allow-net",
+      "./node_modules/drizzle-kit/bin.cjs",
+      "migrate",
+    ],
+    { cwd: testDir, timeout: 60_000 },
+  );
+
+  const output = result.stdout + result.stderr;
+
+  // Be permissive about success wording across versions.
+  const success = result.success && !output.toLowerCase().includes("error");
+
+  return {
+    name: "Test drizzle-kit migrate",
+    success,
+    error: success ? undefined : result.stderr || "Migrate command failed",
+    output: result.stdout.slice(0, 500),
+  };
+}
+
+async function verifyDatabaseSchema(testDir: string): Promise<StepResult> {
+  const result = await runCommand(
+    [
+      "deno",
+      "run",
+      "--allow-read",
+      "--allow-env",
+      "--allow-write",
+      "--allow-net",
+      "./verify-db.ts",
+    ],
+    { cwd: testDir, timeout: 30_000 },
+  );
+
+  const output = result.stdout + result.stderr;
+  const success = result.success && output.includes("Verified DB schema");
+
+  return {
+    name: "Verify migrated DB schema",
+    success,
+    error: success ? undefined : result.stderr || "DB schema verification failed",
+    output: result.stdout.slice(0, 500),
+  };
+}
+
 async function testVersion(
   version: string,
   options: { quick?: boolean } = {},
@@ -514,6 +581,39 @@ async function testVersion(
       };
     }
     console.log("  ✓ Generate command works");
+
+    // Step 9: Test drizzle-kit migrate
+    console.log("🧪 Testing drizzle-kit migrate...");
+    const migrateResult = await testDrizzleKitMigrate(testDir);
+    steps.push(migrateResult);
+    if (!migrateResult.success) {
+      console.log(`  ❌ Failed: ${migrateResult.error}`);
+      return {
+        version,
+        steps,
+        duration: Date.now() - startTime,
+        success: false,
+      };
+    }
+    console.log("  ✓ Migrate command works");
+
+    // Step 10: Verify DB schema reflects applied migrations
+    console.log("🔎 Verifying migrated DB schema...");
+    const verifyDbResult = await verifyDatabaseSchema(testDir);
+    steps.push(verifyDbResult);
+    if (!verifyDbResult.success) {
+      console.log(`  ❌ Failed: ${verifyDbResult.error}`);
+      if (verifyDbResult.output) {
+        console.log(`  Output: ${verifyDbResult.output}`);
+      }
+      return {
+        version,
+        steps,
+        duration: Date.now() - startTime,
+        success: false,
+      };
+    }
+    console.log("  ✓ DB schema verified");
   }
 
   const duration = Date.now() - startTime;

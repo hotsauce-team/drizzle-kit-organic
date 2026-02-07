@@ -1,7 +1,7 @@
 {
   // JSR package configuration
   "name": "@hotsauce/drizzle-kit-deno-patch",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "exports": "./mod.ts",
   "publish": {
     "include": [
@@ -21,6 +21,9 @@
   "imports": {
     // Deno standard library (used by patch script and tests)
     "@std/fs": "jsr:@std/fs@1",
-    "@std/cli": "jsr:@std/cli@1"
+    "@std/cli": "jsr:@std/cli@1",
+
+    // Used by scripts/verify-db.ts (copied into test environments)
+    "@electric-sql/pglite": "npm:@electric-sql/pglite@^0.3.15"
   }
 }

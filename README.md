@@ -194,6 +194,7 @@ The test suite performs the following checks for each version:
 6. **Runtime Tests** (full mode only):
    - `drizzle-kit --help` - Verifies basic CLI functionality
    - `drizzle-kit generate` - Verifies config and schema loading works
+  - `drizzle-kit migrate` - Applies migrations to a local PGlite DB, verifies expected table/columns exist, and checks migrations were recorded as applied
 
 ### Run all tests locally
 
