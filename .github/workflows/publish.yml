@@ -35,5 +35,11 @@ jobs:
       - name: Run tests
         run: deno task test
 
+      - name: Show lockfile changes (if any)
+        run: git diff deno.lock || true
+
+      - name: Restore lockfile (tests may modify it due to Deno version differences)
+        run: git checkout deno.lock
+
       - name: Publish to JSR
         run: deno publish
