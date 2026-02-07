@@ -5,7 +5,8 @@
     "jsr:@std/fmt@^1.0.9": "1.0.9",
     "jsr:@std/fs@1": "1.0.22",
     "jsr:@std/internal@^1.0.12": "1.0.12",
-    "jsr:@std/path@^1.1.4": "1.1.4"
+    "jsr:@std/path@^1.1.4": "1.1.4",
+    "npm:@electric-sql/pglite@~0.3.15": "0.3.15"
   },
   "jsr": {
     "@std/cli@1.0.27": {
@@ -33,6 +34,11 @@
       "dependencies": [
         "jsr:@std/internal"
       ]
+    }
+  },
+  "npm": {
+    "@electric-sql/pglite@0.3.15": {
+      "integrity": "sha512-Cj++n1Mekf9ETfdc16TlDi+cDDQF0W7EcbyRHYOAeZdsAe8M/FJg18itDTSwyHfar2WIezawM9o0EKaRGVKygQ=="
     }
   },
   "workspace": {
