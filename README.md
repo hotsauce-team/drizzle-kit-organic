@@ -6,9 +6,8 @@ A patch to make **drizzle-kit** compatible with **Deno**.
 > production if you understand exactly what the patch does. Review
 > [scripts/patch-drizzle-kit.ts](scripts/patch-drizzle-kit.ts) before deploying.
 
-> ℹ️ **Supported commands:** `generate`, `migrate`, and `push` are supported. Other
-> drizzle-kit commands (`pull`, `studio`, etc.) have not been tested and
-> will probably not work.
+> ℹ️ **Supported commands:** `generate`, `migrate`, `push`, and `pull` are supported.
+> `studio` has not been tested and will probably not work.
 
 ## Installation
 
@@ -56,6 +55,7 @@ Each drizzle-kit command requires specific permissions:
 | `generate` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./drizzle` |
 | `migrate` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle` |
 | `push` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle` |
+| `pull` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle-pull` |
 
 > **Note:** The `--allow-write` paths depend on your config:
 > - `./drizzle` is the default migrations output directory
@@ -129,7 +129,8 @@ The [example/deno.jsonc](example/deno.jsonc) defines permission sets for conveni
   "tasks": {
     "db:generate": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./drizzle ./node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle ./node_modules/drizzle-kit/bin.cjs migrate",
-    "db:push": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle ./node_modules/drizzle-kit/bin.cjs push"
+    "db:push": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle ./node_modules/drizzle-kit/bin.cjs push",
+    "db:pull": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle ./node_modules/drizzle-kit/bin.cjs pull"
   }
 }
 ```
@@ -219,6 +220,7 @@ The test suite performs the following checks for each version:
    - `drizzle-kit generate` - Verifies config and schema loading works
    - `drizzle-kit migrate` - Applies migrations to a local PGlite DB, verifies expected table/columns exist, and checks migrations were recorded as applied
    - `drizzle-kit push` - Pushes schema directly to a separate PGlite DB, verifies expected table/columns exist
+   - `drizzle-kit pull` - Introspects a PGlite DB (created via raw SQL) and verifies a schema file is generated with expected table definitions
 
 ### Run all tests locally
 

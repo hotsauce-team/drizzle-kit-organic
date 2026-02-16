@@ -7,9 +7,18 @@
  * and that the patched binary can execute basic commands.
  *
  * Usage:
- *   deno task test:patch              # Test all supported versions
- *   deno task test:patch 0.30.6       # Test a specific version
- *   deno task test:patch --quick      # Quick test (only checks patch applies)
+ *   deno task test:patch                    # Test all supported versions
+ *   deno task test:patch 0.30.6             # Test a specific version
+ *   deno task test:patch --quick            # Quick test (only checks patch applies)
+ *   deno task test:patch --test=push        # Run only push test (with prerequisites)
+ *   deno task test:patch --test=pull,push   # Run specific tests
+ *
+ * Each command test is independent and handles its own prerequisites:
+ *   - help:     No prerequisites
+ *   - generate: No prerequisites
+ *   - migrate:  Runs generate first
+ *   - push:     No prerequisites (uses schema.ts directly)
+ *   - pull:     Creates DB via raw SQL (no drizzle-kit dependency)
  */
 
 import { walk } from "@std/fs/walk";
@@ -18,9 +27,28 @@ import { parseArgs } from "@std/cli/parse-args";
 // Supported versions to test (should match SUPPORTED_VERSIONS in patch-drizzle-kit.ts)
 const SUPPORTED_VERSIONS = ["0.30.6", "0.31.8", "0.31.9"];
 
+// Available command tests (can be run independently with --test flag)
+const AVAILABLE_TESTS = ["help", "generate", "migrate", "push", "pull"] as const;
+type TestName = typeof AVAILABLE_TESTS[number];
+
 // Test configuration
 const TEST_DIR = ".test-patch";
 const TIMEOUT_MS = 120_000; // 2 minutes per version
+
+// Track what's been set up in the current test run to avoid duplicate work
+interface TestContext {
+  generatedMigrations: boolean;
+  migratedDb: boolean;
+  pushedDb: boolean;
+}
+
+function createTestContext(): TestContext {
+  return {
+    generatedMigrations: false,
+    migratedDb: false,
+    pushedDb: false,
+  };
+}
 
 interface TestResult {
   version: string;
@@ -153,6 +181,23 @@ export default defineConfig({
 });
 `;
   await Deno.writeTextFile(`${versionDir}/drizzle-push.config.ts`, pushConfig);
+
+  // Create pull-specific config with its own DB and output directory (fully independent)
+  await Deno.mkdir(`${versionDir}/drizzle-pull`, { recursive: true });
+  await Deno.mkdir(`${versionDir}/data-pull`, { recursive: true });
+  const pullConfig = `
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  out: "./drizzle-pull",
+  dialect: "postgresql",
+  driver: "pglite" as const,
+  dbCredentials: {
+    url: "file:./data-pull",
+  },
+});
+`;
+  await Deno.writeTextFile(`${versionDir}/drizzle-pull.config.ts`, pullConfig);
 
   // Copy DB verification script into the test environment
   const verifyDbScript = await Deno.readTextFile("scripts/verify-db.ts");
@@ -554,9 +599,372 @@ async function verifyDatabaseSchema(testDir: string): Promise<StepResult> {
   };
 }
 
+async function testDrizzleKitPull(testDir: string): Promise<StepResult> {
+  // Test that drizzle-kit pull works (introspects DB and generates schema)
+  // Uses dedicated data-pull database created via raw SQL
+  // Note: needs write access to data-pull for PGlite database locks
+  const result = await runCommand(
+    [
+      "deno",
+      "run",
+      "--allow-env=DATABASE_URL",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data-pull,./drizzle-pull",
+      "./node_modules/drizzle-kit/bin.cjs",
+      "pull",
+      "--config=drizzle-pull.config.ts",
+    ],
+    { cwd: testDir, timeout: 60_000 },
+  );
+
+  // Trust exit code; schema verification is the real correctness check
+  return {
+    name: "Test drizzle-kit pull",
+    success: result.success,
+    error: result.success ? undefined : result.stderr || "Pull command failed",
+    output: (result.stdout + result.stderr).slice(0, 500),
+  };
+}
+
+async function verifyPullSchema(testDir: string): Promise<StepResult> {
+  // Verify that pull generated a schema file with expected tables
+  try {
+    const schemaPath = `${testDir}/drizzle-pull/schema.ts`;
+    
+    // Check file exists and read content
+    let content: string;
+    let stat: Deno.FileInfo;
+    try {
+      stat = await Deno.stat(schemaPath);
+      content = await Deno.readTextFile(schemaPath);
+    } catch {
+      return {
+        name: "Verify pull schema",
+        success: false,
+        error: `Schema file not found at ${schemaPath}`,
+      };
+    }
+    
+    // Assert file is non-trivial (> 200 bytes)
+    if (stat.size < 200) {
+      return {
+        name: "Verify pull schema",
+        success: false,
+        error: `Schema file too small (${stat.size} bytes), expected > 200`,
+        output: content,
+      };
+    }
+    
+    // Assert it's for PostgreSQL (not SQLite or other dialects)
+    const hasPgImport = content.includes('drizzle-orm/pg-core') && content.includes('pgTable');
+    const hasSqliteImport = content.includes('sqliteTable');
+    if (!hasPgImport || hasSqliteImport) {
+      return {
+        name: "Verify pull schema",
+        success: false,
+        error: "Schema should import pgTable from drizzle-orm/pg-core, not SQLite",
+        output: content.slice(0, 500),
+      };
+    }
+    
+    // Assert no empty schema fallback
+    const emptySchemaPatterns = ['No tables found', 'empty schema', 'no tables'];
+    for (const pattern of emptySchemaPatterns) {
+      if (content.toLowerCase().includes(pattern.toLowerCase())) {
+        return {
+          name: "Verify pull schema",
+          success: false,
+          error: `Schema appears to be empty (contains "${pattern}")`,
+          output: content.slice(0, 500),
+        };
+      }
+    }
+    
+    // Assert users table with proper structure
+    // Look for: pgTable("users" or export const users = pgTable(
+    const hasUsersTableDef = /pgTable\(["']users["']/.test(content) || 
+                             /export const users\s*=\s*pgTable\(/.test(content);
+    // Look for id column with serial and primaryKey
+    // Format 1: serial("id").primaryKey() - explicit column name
+    // Format 2: id: serial().primaryKey() - column name from object key
+    const hasIdColumn = /serial\(["']id["']\).*\.primaryKey\(\)/.test(content) ||
+                        /id:\s*serial\(\)\.primaryKey\(\)/.test(content);
+    // Look for name column with text and notNull
+    // Format 1: text("name").notNull()
+    // Format 2: name: text().notNull()
+    const hasNameColumn = /text\(["']name["']\).*\.notNull\(\)/.test(content) ||
+                          /name:\s*text\(\)\.notNull\(\)/.test(content);
+    
+    if (!hasUsersTableDef || !hasIdColumn || !hasNameColumn) {
+      return {
+        name: "Verify pull schema",
+        success: false,
+        error: `Users table missing expected structure: tableDef=${hasUsersTableDef}, idCol=${hasIdColumn}, nameCol=${hasNameColumn}`,
+        output: content.slice(0, 800),
+      };
+    }
+    
+    // Assert posts table exists (catches "pull ran but didn't introspect" failures)
+    const hasPostsTableDef = /pgTable\(["']posts["']/.test(content) ||
+                             /export const posts\s*=\s*pgTable\(/.test(content);
+    // Posts should have title and user_id columns
+    // title: text().notNull() or text("title").notNull()
+    const hasPostsTitle = /text\(["']title["']\)/.test(content) ||
+                          /title:\s*text\(\)\.notNull\(\)/.test(content);
+    // user_id uses explicit name since camelCase key differs: integer("user_id")
+    const hasPostsUserId = /integer\(["']user_id["']\)/.test(content);
+    
+    if (!hasPostsTableDef || !hasPostsTitle || !hasPostsUserId) {
+      return {
+        name: "Verify pull schema",
+        success: false,
+        error: `Posts table missing expected structure: tableDef=${hasPostsTableDef}, titleCol=${hasPostsTitle}, userIdCol=${hasPostsUserId}`,
+        output: content.slice(0, 800),
+      };
+    }
+    
+    return {
+      name: "Verify pull schema",
+      success: true,
+      output: `Generated schema contains users table (id, name) and posts table (id, title, user_id) from drizzle-orm/pg-core`,
+    };
+  } catch (error) {
+    return {
+      name: "Verify pull schema",
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+// =============================================================================
+// Independent Test Runners
+// Each test handles its own prerequisites and can be run standalone
+// =============================================================================
+
+interface IndependentTestResult {
+  steps: StepResult[];
+  success: boolean;
+}
+
+async function runHelpTest(
+  testDir: string,
+  _ctx: TestContext,
+): Promise<IndependentTestResult> {
+  const steps: StepResult[] = [];
+  
+  console.log("🧪 Testing drizzle-kit --help...");
+  const helpResult = await testDrizzleKitHelp(testDir);
+  steps.push(helpResult);
+  
+  if (!helpResult.success) {
+    console.log(`  ❌ Failed: ${helpResult.error}`);
+    return { steps, success: false };
+  }
+  console.log("  ✓ Help command works");
+  
+  return { steps, success: true };
+}
+
+async function runGenerateTest(
+  testDir: string,
+  ctx: TestContext,
+): Promise<IndependentTestResult> {
+  const steps: StepResult[] = [];
+  
+  console.log("🧪 Testing drizzle-kit generate...");
+  const generateResult = await testDrizzleKitGenerate(testDir);
+  steps.push(generateResult);
+  
+  if (!generateResult.success) {
+    console.log(`  ❌ Failed: ${generateResult.error}`);
+    return { steps, success: false };
+  }
+  console.log("  ✓ Generate command works");
+  ctx.generatedMigrations = true;
+  
+  return { steps, success: true };
+}
+
+async function runMigrateTest(
+  testDir: string,
+  ctx: TestContext,
+): Promise<IndependentTestResult> {
+  const steps: StepResult[] = [];
+  
+  // Prerequisite: generate migrations first
+  if (!ctx.generatedMigrations) {
+    console.log("📋 Running prerequisite: generate...");
+    const genResult = await runGenerateTest(testDir, ctx);
+    steps.push(...genResult.steps);
+    if (!genResult.success) {
+      return { steps, success: false };
+    }
+  }
+  
+  console.log("🧪 Testing drizzle-kit migrate...");
+  const migrateResult = await testDrizzleKitMigrate(testDir);
+  steps.push(migrateResult);
+  
+  if (!migrateResult.success) {
+    console.log(`  ❌ Failed: ${migrateResult.error}`);
+    return { steps, success: false };
+  }
+  console.log("  ✓ Migrate command works");
+  
+  // Verify DB schema
+  console.log("🔎 Verifying migrated DB schema...");
+  const verifyDbResult = await verifyDatabaseSchema(testDir);
+  steps.push(verifyDbResult);
+  
+  if (!verifyDbResult.success) {
+    console.log(`  ❌ Failed: ${verifyDbResult.error}`);
+    return { steps, success: false };
+  }
+  console.log("  ✓ DB schema verified");
+  ctx.migratedDb = true;
+  
+  return { steps, success: true };
+}
+
+async function runPushTest(
+  testDir: string,
+  ctx: TestContext,
+): Promise<IndependentTestResult> {
+  const steps: StepResult[] = [];
+  
+  // No prerequisites - push reads schema.ts directly and uses --force
+  console.log("🧪 Testing drizzle-kit push...");
+  const pushResult = await testDrizzleKitPush(testDir);
+  steps.push(pushResult);
+  
+  if (!pushResult.success) {
+    console.log(`  ❌ Failed: ${pushResult.error}`);
+    return { steps, success: false };
+  }
+  console.log("  ✓ Push command works");
+  
+  // Verify push DB schema
+  console.log("🔎 Verifying push DB schema...");
+  const verifyPushDbResult = await verifyPushDatabaseSchema(testDir);
+  steps.push(verifyPushDbResult);
+  
+  if (!verifyPushDbResult.success) {
+    console.log(`  ❌ Failed: ${verifyPushDbResult.error}`);
+    return { steps, success: false };
+  }
+  console.log("  ✓ Push DB schema verified");
+  ctx.pushedDb = true;
+  
+  return { steps, success: true };
+}
+
+async function runPullTest(
+  testDir: string,
+  _ctx: TestContext,
+): Promise<IndependentTestResult> {
+  const steps: StepResult[] = [];
+  
+  // Always create DB schema via raw SQL (fully independent test)
+  console.log("📋 Creating DB schema (raw SQL)...");
+  await ensurePullDbSchema(testDir);
+  
+  console.log("🧪 Testing drizzle-kit pull...");
+  const pullResult = await testDrizzleKitPull(testDir);
+  steps.push(pullResult);
+  
+  if (!pullResult.success) {
+    console.log(`  ❌ Failed: ${pullResult.error}`);
+    return { steps, success: false };
+  }
+  console.log("  ✓ Pull command works");
+  
+  // Verify pull generated schema
+  console.log("🔎 Verifying pull schema...");
+  const verifyPullResult = await verifyPullSchema(testDir);
+  steps.push(verifyPullResult);
+  
+  if (!verifyPullResult.success) {
+    console.log(`  ❌ Failed: ${verifyPullResult.error}`);
+    return { steps, success: false };
+  }
+  console.log("  ✓ Pull schema verified");
+  
+  return { steps, success: true };
+}
+
+// Helper: Create DB schema for pull test using raw SQL (no drizzle-kit dependency)
+async function ensurePullDbSchema(testDir: string): Promise<void> {
+  // Create a script that uses PGlite directly with raw SQL
+  // Creates TWO tables (users + posts) to ensure pull actually introspects the DB
+  // and isn't just returning a template/default schema
+  const setupScript = `
+import { PGlite } from "@electric-sql/pglite";
+
+const db = new PGlite("./data-pull");
+
+// Create the users table with raw SQL
+await db.exec(\`
+  CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL
+  );
+\`);
+
+// Create a posts table that references users (proves introspection is real)
+await db.exec(\`
+  CREATE TABLE IF NOT EXISTS posts (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id)
+  );
+\`);
+
+// Verify both tables were created
+const result = await db.query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename");
+const tables = result.rows.map((r: { tablename: string }) => r.tablename);
+if (!tables.includes("users")) {
+  throw new Error("Failed to create users table");
+}
+if (!tables.includes("posts")) {
+  throw new Error("Failed to create posts table");
+}
+
+console.log("Created users and posts tables via raw SQL");
+await db.close();
+`;
+  await Deno.writeTextFile(`${testDir}/setup-pull-db.ts`, setupScript);
+  
+  // Run the setup script
+  const result = await runCommand(
+    [
+      "deno",
+      "run",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data-pull",
+      "./setup-pull-db.ts",
+    ],
+    { cwd: testDir, timeout: 60_000 },
+  );
+  
+  if (!result.success) {
+    throw new Error(`Failed to setup DB for pull test: ${result.stderr}`);
+  }
+  console.log("  ✓ DB schema created for pull test (users + posts tables via raw SQL)");
+}
+
+// Map test names to their runner functions
+const TEST_RUNNERS: Record<TestName, (testDir: string, ctx: TestContext) => Promise<IndependentTestResult>> = {
+  help: runHelpTest,
+  generate: runGenerateTest,
+  migrate: runMigrateTest,
+  push: runPushTest,
+  pull: runPullTest,
+};
+
 async function testVersion(
   version: string,
-  options: { quick?: boolean } = {},
+  options: { quick?: boolean; tests?: TestName[] } = {},
 ): Promise<TestResult> {
   const startTime = Date.now();
   const steps: StepResult[] = [];
@@ -627,104 +1035,29 @@ async function testVersion(
   console.log(`  ✓ All patches verified (${allPatchesResult.output})`);
 
   if (!options.quick) {
-    // Step 7: Test drizzle-kit --help
-    console.log("🧪 Testing drizzle-kit --help...");
-    const helpResult = await testDrizzleKitHelp(testDir);
-    steps.push(helpResult);
-    if (!helpResult.success) {
-      console.log(`  ❌ Failed: ${helpResult.error}`);
-      return {
-        version,
-        steps,
-        duration: Date.now() - startTime,
-        success: false,
-      };
-    }
-    console.log("  ✓ Help command works");
-
-    // Step 8: Test drizzle-kit generate
-    console.log("🧪 Testing drizzle-kit generate...");
-    const generateResult = await testDrizzleKitGenerate(testDir);
-    steps.push(generateResult);
-    if (!generateResult.success) {
-      console.log(`  ❌ Failed: ${generateResult.error}`);
-      return {
-        version,
-        steps,
-        duration: Date.now() - startTime,
-        success: false,
-      };
-    }
-    console.log("  ✓ Generate command works");
-
-    // Step 9: Test drizzle-kit migrate
-    console.log("🧪 Testing drizzle-kit migrate...");
-    const migrateResult = await testDrizzleKitMigrate(testDir);
-    steps.push(migrateResult);
-    if (!migrateResult.success) {
-      console.log(`  ❌ Failed: ${migrateResult.error}`);
-      return {
-        version,
-        steps,
-        duration: Date.now() - startTime,
-        success: false,
-      };
-    }
-    console.log("  ✓ Migrate command works");
-
-    // Step 10: Verify DB schema reflects applied migrations
-    console.log("🔎 Verifying migrated DB schema...");
-    const verifyDbResult = await verifyDatabaseSchema(testDir);
-    steps.push(verifyDbResult);
-    if (!verifyDbResult.success) {
-      console.log(`  ❌ Failed: ${verifyDbResult.error}`);
-      if (verifyDbResult.output) {
-        console.log(`  Output: ${verifyDbResult.output}`);
+    // Create test context to track prerequisites across tests
+    const ctx = createTestContext();
+    
+    // Determine which tests to run
+    const testsToRun = options.tests || AVAILABLE_TESTS.slice(); // default: all tests
+    const testList = testsToRun.join(", ");
+    console.log(`\n📋 Running tests: ${testList}`);
+    
+    // Run selected tests using independent test runners
+    for (const testName of testsToRun) {
+      const runner = TEST_RUNNERS[testName];
+      const result = await runner(testDir, ctx);
+      steps.push(...result.steps);
+      
+      if (!result.success) {
+        return {
+          version,
+          steps,
+          duration: Date.now() - startTime,
+          success: false,
+        };
       }
-      return {
-        version,
-        steps,
-        duration: Date.now() - startTime,
-        success: false,
-      };
     }
-    console.log("  ✓ DB schema verified");
-
-    // Step 11: Test drizzle-kit push (uses separate DB)
-    console.log("🧪 Testing drizzle-kit push...");
-    const pushResult = await testDrizzleKitPush(testDir);
-    steps.push(pushResult);
-    if (!pushResult.success) {
-      console.log(`  ❌ Failed: ${pushResult.error}`);
-      if (pushResult.output) {
-        console.log(`  Output: ${pushResult.output}`);
-      }
-      return {
-        version,
-        steps,
-        duration: Date.now() - startTime,
-        success: false,
-      };
-    }
-    console.log("  ✓ Push command works");
-
-    // Step 12: Verify push DB schema
-    console.log("🔎 Verifying push DB schema...");
-    const verifyPushDbResult = await verifyPushDatabaseSchema(testDir);
-    steps.push(verifyPushDbResult);
-    if (!verifyPushDbResult.success) {
-      console.log(`  ❌ Failed: ${verifyPushDbResult.error}`);
-      if (verifyPushDbResult.output) {
-        console.log(`  Output: ${verifyPushDbResult.output}`);
-      }
-      return {
-        version,
-        steps,
-        duration: Date.now() - startTime,
-        success: false,
-      };
-    }
-    console.log("  ✓ Push DB schema verified");
   }
 
   const duration = Date.now() - startTime;
@@ -750,7 +1083,8 @@ async function cleanup() {
 async function main() {
   const args = parseArgs(Deno.args, {
     boolean: ["quick", "keep", "help"],
-    alias: { q: "quick", k: "keep", h: "help" },
+    string: ["test"],
+    alias: { q: "quick", k: "keep", h: "help", t: "test" },
   });
 
   if (args.help) {
@@ -761,17 +1095,40 @@ Usage:
   deno task test:patch [options] [versions...]
 
 Options:
-  --quick, -q    Quick test (only verify patch applies, skip runtime tests)
-  --keep, -k     Keep test directories after completion
-  --help, -h     Show this help message
+  --quick, -q        Quick test (only verify patch applies, skip runtime tests)
+  --test, -t <tests> Run specific tests (comma-separated: help,generate,migrate,push,pull)
+  --keep, -k         Keep test directories after completion
+  --help, -h         Show this help message
+
+Available Tests:
+  help      Test --help command
+  generate  Test schema generation (creates migrations)
+  migrate   Test database migration (runs generate first if needed)
+  push      Test schema push (standalone, uses --force)
+  pull      Test schema introspection (creates DB via raw SQL, standalone)
 
 Examples:
-  deno task test:patch              # Test all supported versions
-  deno task test:patch 0.30.6       # Test a specific version
-  deno task test:patch --quick      # Quick test all versions
-  deno task test:patch -q 0.30.4    # Quick test specific version
+  deno task test:patch                    # Test all supported versions
+  deno task test:patch 0.30.6             # Test a specific version
+  deno task test:patch --quick            # Quick test all versions
+  deno task test:patch --test=push        # Run only push test
+  deno task test:patch --test=push,pull   # Run push and pull tests
+  deno task test:patch -t migrate 0.31.9  # Test migrate on specific version
 `);
     Deno.exit(0);
+  }
+
+  // Parse --test option
+  let testsToRun: TestName[] | undefined;
+  if (args.test) {
+    const requestedTests = args.test.split(",").map((t: string) => t.trim().toLowerCase());
+    const invalidTests = requestedTests.filter((t: string) => !AVAILABLE_TESTS.includes(t as TestName));
+    if (invalidTests.length > 0) {
+      console.error(`❌ Invalid test(s): ${invalidTests.join(", ")}`);
+      console.error(`   Available: ${AVAILABLE_TESTS.join(", ")}`);
+      Deno.exit(1);
+    }
+    testsToRun = requestedTests as TestName[];
   }
 
   // Determine which versions to test
@@ -792,6 +1149,9 @@ Examples:
   console.log("║        drizzle-kit Patch Compatibility Test Suite          ║");
   console.log("╚════════════════════════════════════════════════════════════╝");
   console.log(`\nVersions to test: ${versionsToTest.join(", ")}`);
+  if (testsToRun) {
+    console.log(`Tests to run: ${testsToRun.join(", ")}`);
+  }
   console.log(
     `Mode: ${args.quick ? "Quick (patch only)" : "Full (patch + runtime)"}`,
   );
@@ -799,7 +1159,7 @@ Examples:
   const results: TestResult[] = [];
 
   for (const version of versionsToTest) {
-    const result = await testVersion(version, { quick: args.quick });
+    const result = await testVersion(version, { quick: args.quick, tests: testsToRun });
     results.push(result);
   }
 
