@@ -62,6 +62,10 @@ jobs:
       - name: Clean test directory
         run: rm -rf .test-patch
 
+      - name: Clear drizzle-kit from npm cache
+        # Ensures we get fresh unpatched drizzle-kit for each test run
+        run: rm -rf ~/.cache/deno/npm/registry.npmjs.org/drizzle-kit
+
       - name: Run patch test for drizzle-kit@${{ matrix.version }}
         run: deno run --allow-read=scripts,deno.jsonc,.test-patch --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts ${{ matrix.version }}
 
@@ -88,6 +92,10 @@ jobs:
 
       - name: Clean test directory
         run: rm -rf .test-patch
+
+      - name: Clear drizzle-kit from npm cache
+        # Ensures we get fresh unpatched drizzle-kit for each test run
+        run: rm -rf ~/.cache/deno/npm/registry.npmjs.org/drizzle-kit
 
       - name: Run quick patch tests
         run: deno run --allow-read=scripts,deno.jsonc,.test-patch --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts --quick
