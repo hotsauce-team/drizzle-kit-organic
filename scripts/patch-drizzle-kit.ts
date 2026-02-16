@@ -9,12 +9,13 @@
  * 5. Adds process.exit(0) after commands - prevents hanging event loop
  * 6. Stubs color support functions - avoids env var checks at load time
  * 7. Defers homedir/tmpdir calls - avoids permission prompts at load time
+ * 8. Stubs test-only env vars - avoids permission errors for __MINIMATCH_TESTING_PLATFORM__ and TEST_CONFIG_PATH_PREFIX
  */
 
 import { walk } from "@std/fs/walk";
 
 const NODE_MODULES = "./node_modules";
-const PATCH_MARKER = "// DRIZZLE-KIT-DENO-PATCHED-V10";
+const PATCH_MARKER = "// DRIZZLE-KIT-DENO-PATCHED-V11";
 
 /** Drizzle-kit versions that have been tested with this patch */
 export const SUPPORTED_VERSIONS = ["0.30.6", "0.31.8", "0.31.9"];
@@ -121,7 +122,7 @@ export async function patchDrizzleKit() {
 
   // Check if already patched with current version
   if (content.includes(PATCH_MARKER)) {
-    console.log("✅ drizzle-kit already patched (v10)");
+    console.log("✅ drizzle-kit already patched (v11)");
     return;
   }
 
@@ -129,7 +130,7 @@ export async function patchDrizzleKit() {
   const oldPatchMatch = content.match(/\/\/ DRIZZLE-KIT-DENO-PATCHED-V(\d+)/);
   if (oldPatchMatch) {
     console.log(
-      `♻️  Found older patch (v${oldPatchMatch[1]}), will re-patch to v10`,
+      `♻️  Found older patch (v${oldPatchMatch[1]}), will re-patch to v11`,
     );
     // Note: We proceed to patch over the old version
   }
@@ -251,6 +252,36 @@ export async function patchDrizzleKit() {
       `// ../node_modules/.pnpm/dotenv@16.4.5/node_modules/dotenv/config.js
 // PATCHED: Skip dotenv auto-config for Deno
 (function() { return; require_main().config(`,
+    );
+    content = newContent;
+    results.push(result);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Patch 4c: Skip minimatch __MINIMATCH_TESTING_PLATFORM__ check
+  // The env var check throws in Deno when not explicitly allowed
+  // ─────────────────────────────────────────────────────────────
+  {
+    const { content: newContent, result } = applyPatch(
+      content,
+      "skip minimatch testing env",
+      /process\.env\.__MINIMATCH_TESTING_PLATFORM__\s*\|\|\s*process\.platform/g,
+      `process.platform /* PATCHED: skip __MINIMATCH_TESTING_PLATFORM__ for Deno */`,
+    );
+    content = newContent;
+    results.push(result);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Patch 4d: Skip TEST_CONFIG_PATH_PREFIX env check
+  // This is a drizzle-kit internal testing env var
+  // ─────────────────────────────────────────────────────────────
+  {
+    const { content: newContent, result } = applyPatch(
+      content,
+      "skip TEST_CONFIG_PATH_PREFIX",
+      /const prefix2 = process\.env\.TEST_CONFIG_PATH_PREFIX \|\| "";/g,
+      `const prefix2 = ""; /* PATCHED: skip TEST_CONFIG_PATH_PREFIX for Deno */`,
     );
     content = newContent;
     results.push(result);

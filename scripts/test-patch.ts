@@ -241,7 +241,7 @@ async function verifyPatchMarker(testDir: string): Promise<StepResult> {
     ) {
       if (entry.isFile) {
         const content = await Deno.readTextFile(entry.path);
-        const hasMarker = content.includes("DRIZZLE-KIT-DENO-PATCHED-V10");
+        const hasMarker = content.includes("DRIZZLE-KIT-DENO-PATCHED-V11");
 
         return {
           name: "Verify patch marker",
@@ -312,6 +312,14 @@ const OPTIONAL_PATCH_MARKERS = [
   },
   { name: "lazy homedir", pattern: "_getHomedir()," },
   { name: "lazy tmpdir", pattern: "_getTmpdir()," },
+  {
+    name: "minimatch testing env",
+    pattern: "/* PATCHED: skip __MINIMATCH_TESTING_PLATFORM__ for Deno */",
+  },
+  {
+    name: "TEST_CONFIG_PATH_PREFIX",
+    pattern: "/* PATCHED: skip TEST_CONFIG_PATH_PREFIX for Deno */",
+  },
 ];
 
 async function verifyAllPatches(testDir: string): Promise<StepResult> {
@@ -390,10 +398,7 @@ async function testDrizzleKitHelp(testDir: string): Promise<StepResult> {
     [
       "deno",
       "run",
-      "--allow-read",
-      "--allow-env",
-      "--allow-write",
-      "--allow-net",
+      "--allow-read=.,./node_modules",
       "./node_modules/drizzle-kit/bin.cjs",
       "--help",
     ],
@@ -420,10 +425,9 @@ async function testDrizzleKitGenerate(testDir: string): Promise<StepResult> {
     [
       "deno",
       "run",
-      "--allow-read",
-      "--allow-env",
-      "--allow-write",
-      "--allow-net",
+      "--allow-env=DATABASE_URL",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./drizzle",
       "./node_modules/drizzle-kit/bin.cjs",
       "generate",
     ],
@@ -451,10 +455,9 @@ async function testDrizzleKitMigrate(testDir: string): Promise<StepResult> {
     [
       "deno",
       "run",
-      "--allow-read",
-      "--allow-env",
-      "--allow-write",
-      "--allow-net",
+      "--allow-env=DATABASE_URL",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data,./drizzle",
       "./node_modules/drizzle-kit/bin.cjs",
       "migrate",
     ],
@@ -477,16 +480,13 @@ async function testDrizzleKitMigrate(testDir: string): Promise<StepResult> {
 async function testDrizzleKitPush(testDir: string): Promise<StepResult> {
   // Test that drizzle-kit push works (pushes schema directly to DB)
   // Uses separate DB but shared out/ directory (push reads schema snapshot from generate)
-  // Note: --allow-env must be broad because restricted env causes silent failures
-  // (drizzle-kit/PGlite checks env vars and silently skips operations if denied)
   const result = await runCommand(
     [
       "deno",
       "run",
+      "--allow-env=DATABASE_URL",
       "--allow-read=.,./node_modules",
-      "--allow-env",
       "--allow-write=./data-push,./drizzle",
-      "--allow-net",
       "./node_modules/drizzle-kit/bin.cjs",
       "push",
       "--config=drizzle-push.config.ts",
@@ -511,10 +511,8 @@ async function verifyPushDatabaseSchema(testDir: string): Promise<StepResult> {
     [
       "deno",
       "run",
-      "--allow-read",
-      "--allow-env",
-      "--allow-write",
-      "--allow-net",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data-push",
       "./verify-db.ts",
       "--db", "./data-push",
       "--skip-migrations", // push doesn't record migrations
@@ -538,10 +536,8 @@ async function verifyDatabaseSchema(testDir: string): Promise<StepResult> {
     [
       "deno",
       "run",
-      "--allow-read",
-      "--allow-env",
-      "--allow-write",
-      "--allow-net",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data",
       "./verify-db.ts",
     ],
     { cwd: testDir, timeout: 30_000 },
