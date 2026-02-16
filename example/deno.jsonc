@@ -13,7 +13,10 @@
     "db:migrate": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle ./node_modules/drizzle-kit/bin.cjs migrate",
 
     // Alternative: Push schema directly without migrations
-    "db:push": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle ./node_modules/drizzle-kit/bin.cjs push"
+    "db:push": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle ./node_modules/drizzle-kit/bin.cjs push",
+
+    // Introspect existing database and generate schema
+    "db:pull": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle ./node_modules/drizzle-kit/bin.cjs pull"
   },
   "imports": {
     // NPM packages
