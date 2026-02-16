@@ -6,8 +6,8 @@ A patch to make **drizzle-kit** compatible with **Deno**.
 > production if you understand exactly what the patch does. Review
 > [scripts/patch-drizzle-kit.ts](scripts/patch-drizzle-kit.ts) before deploying.
 
-> ℹ️ **Supported commands:** Only `generate` and `migrate` are supported. Other
-> drizzle-kit commands (`push`, `pull`, `studio`, etc.) have not been tested and
+> ℹ️ **Supported commands:** `generate`, `migrate`, and `push` are supported. Other
+> drizzle-kit commands (`pull`, `studio`, etc.) have not been tested and
 > will probably not work.
 
 ## Installation
@@ -195,7 +195,8 @@ The test suite performs the following checks for each version:
 6. **Runtime Tests** (full mode only):
    - `drizzle-kit --help` - Verifies basic CLI functionality
    - `drizzle-kit generate` - Verifies config and schema loading works
-  - `drizzle-kit migrate` - Applies migrations to a local PGlite DB, verifies expected table/columns exist, and checks migrations were recorded as applied
+   - `drizzle-kit migrate` - Applies migrations to a local PGlite DB, verifies expected table/columns exist, and checks migrations were recorded as applied
+   - `drizzle-kit push` - Pushes schema directly to a separate PGlite DB, verifies expected table/columns exist
 
 ### Run all tests locally
 
