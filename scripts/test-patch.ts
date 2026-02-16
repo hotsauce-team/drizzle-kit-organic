@@ -16,7 +16,7 @@ import { walk } from "@std/fs/walk";
 import { parseArgs } from "@std/cli/parse-args";
 
 // Supported versions to test (should match SUPPORTED_VERSIONS in patch-drizzle-kit.ts)
-const SUPPORTED_VERSIONS = ["0.30.6", "0.31.8"];
+const SUPPORTED_VERSIONS = ["0.30.6", "0.31.8", "0.31.9"];
 
 // Test configuration
 const TEST_DIR = ".test-patch";

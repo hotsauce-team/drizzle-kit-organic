@@ -22,7 +22,7 @@ Or add to your `deno.jsonc` tasks:
 ```jsonc
 {
   "tasks": {
-    "patch": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.8 jsr:@hotsauce/drizzle-kit-deno-patch"
+    "patch": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.9 jsr:@hotsauce/drizzle-kit-deno-patch"
   }
 }
 ```
@@ -125,7 +125,7 @@ and network access.
 The patch script:
 
 1. **Finds** the drizzle-kit binary in `node_modules/`
-2. **Checks** the version (tested with 0.30.6, 0.31.8)
+2. **Checks** the version (tested with 0.30.6, 0.31.8, 0.31.9)
 3. **Applies patches** using regex replacements
 4. **Marks** the file as patched to avoid re-patching
 5. **Reports** which patches succeeded or failed
@@ -169,7 +169,8 @@ The `--permission-set=drizzle-kit` flag uses the permissions defined in
 ## Supported drizzle-kit versions
 
 - 0.30.6
-- 0.31.8 (recommended)
+- 0.31.8
+- 0.31.9 (recommended)
 
 The patch script will warn but attempt to patch other versions.
 
@@ -205,7 +206,7 @@ deno task test
 ### Test a specific version
 
 ```bash
-deno task test 0.31.8
+deno task test 0.31.9
 ```
 
 ### Quick test (patch only, no runtime tests)

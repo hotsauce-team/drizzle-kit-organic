@@ -4,7 +4,7 @@
     // deno install
 
     // Step 2: Patch drizzle-kit for Deno compatibility
-    "patch": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.8 jsr:@hotsauce/drizzle-kit-deno-patch",
+    "patch": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.9 jsr:@hotsauce/drizzle-kit-deno-patch",
 
     // Step 3: Generate migrations from schema changes
     "db:generate": "deno run --permission-set=drizzle-kit ./node_modules/drizzle-kit/bin.cjs generate",
@@ -15,7 +15,7 @@
   "imports": {
     // NPM packages
     "@electric-sql/pglite": "npm:@electric-sql/pglite@^0.3.15",
-    "drizzle-kit": "npm:drizzle-kit@0.31.8",
+    "drizzle-kit": "npm:drizzle-kit@0.31.9",
     "drizzle-orm": "npm:drizzle-orm@^0.45.1",
 
     // JSR packages (demonstrating JSR imports work in schema files)
