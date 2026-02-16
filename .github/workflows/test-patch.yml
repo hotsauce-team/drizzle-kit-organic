@@ -49,9 +49,9 @@ jobs:
           path: |
             ~/.cache/deno
             ~/.deno
-          key: ${{ runner.os }}-deno-${{ hashFiles('deno.jsonc', 'deno.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-deno-
+          # Include patch script in cache key so cache busts when patch version changes
+          # No restore-keys fallback - stale caches have patched npm packages that can't be re-patched
+          key: ${{ runner.os }}-deno-${{ hashFiles('deno.jsonc', 'deno.lock', 'scripts/patch-drizzle-kit.ts') }}
 
       - name: Install dependencies
         run: deno install
@@ -61,6 +61,10 @@ jobs:
 
       - name: Clean test directory
         run: rm -rf .test-patch
+
+      - name: Clear drizzle-kit from npm cache
+        # Ensures we get fresh unpatched drizzle-kit for each test run
+        run: rm -rf ~/.cache/deno/npm/registry.npmjs.org/drizzle-kit
 
       - name: Run patch test for drizzle-kit@${{ matrix.version }}
         run: deno run --allow-read=scripts,deno.jsonc,.test-patch --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts ${{ matrix.version }}
@@ -88,6 +92,10 @@ jobs:
 
       - name: Clean test directory
         run: rm -rf .test-patch
+
+      - name: Clear drizzle-kit from npm cache
+        # Ensures we get fresh unpatched drizzle-kit for each test run
+        run: rm -rf ~/.cache/deno/npm/registry.npmjs.org/drizzle-kit
 
       - name: Run quick patch tests
         run: deno run --allow-read=scripts,deno.jsonc,.test-patch --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts --quick

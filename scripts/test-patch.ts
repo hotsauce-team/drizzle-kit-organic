@@ -134,6 +134,26 @@ export default defineConfig({
   // Create local DB storage directory for PGlite
   await Deno.mkdir(`${versionDir}/data`, { recursive: true });
 
+  // Create separate DB directory for push testing (DB is isolated, but shares out/ for schema snapshot)
+  await Deno.mkdir(`${versionDir}/data-push`, { recursive: true });
+
+  // Create push-specific config that uses separate DB but same out/ directory
+  // (push reads schema snapshot from out/ created by generate)
+  const pushConfig = `
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  schema: "./schema.ts",
+  out: "./drizzle",
+  dialect: "postgresql",
+  driver: "pglite" as const,
+  dbCredentials: {
+    url: "file:./data-push",
+  },
+});
+`;
+  await Deno.writeTextFile(`${versionDir}/drizzle-push.config.ts`, pushConfig);
+
   // Copy DB verification script into the test environment
   const verifyDbScript = await Deno.readTextFile("scripts/verify-db.ts");
   await Deno.writeTextFile(`${versionDir}/verify-db.ts`, verifyDbScript);
@@ -221,7 +241,7 @@ async function verifyPatchMarker(testDir: string): Promise<StepResult> {
     ) {
       if (entry.isFile) {
         const content = await Deno.readTextFile(entry.path);
-        const hasMarker = content.includes("DRIZZLE-KIT-DENO-PATCHED-V10");
+        const hasMarker = content.includes("DRIZZLE-KIT-DENO-PATCHED-V11");
 
         return {
           name: "Verify patch marker",
@@ -292,6 +312,14 @@ const OPTIONAL_PATCH_MARKERS = [
   },
   { name: "lazy homedir", pattern: "_getHomedir()," },
   { name: "lazy tmpdir", pattern: "_getTmpdir()," },
+  {
+    name: "minimatch testing env",
+    pattern: "/* PATCHED: skip __MINIMATCH_TESTING_PLATFORM__ for Deno */",
+  },
+  {
+    name: "TEST_CONFIG_PATH_PREFIX",
+    pattern: "/* PATCHED: skip TEST_CONFIG_PATH_PREFIX for Deno */",
+  },
 ];
 
 async function verifyAllPatches(testDir: string): Promise<StepResult> {
@@ -370,10 +398,7 @@ async function testDrizzleKitHelp(testDir: string): Promise<StepResult> {
     [
       "deno",
       "run",
-      "--allow-read",
-      "--allow-env",
-      "--allow-write",
-      "--allow-net",
+      "--allow-read=.,./node_modules",
       "./node_modules/drizzle-kit/bin.cjs",
       "--help",
     ],
@@ -400,10 +425,9 @@ async function testDrizzleKitGenerate(testDir: string): Promise<StepResult> {
     [
       "deno",
       "run",
-      "--allow-read",
-      "--allow-env",
-      "--allow-write",
-      "--allow-net",
+      "--allow-env=DATABASE_URL",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./drizzle",
       "./node_modules/drizzle-kit/bin.cjs",
       "generate",
     ],
@@ -431,10 +455,9 @@ async function testDrizzleKitMigrate(testDir: string): Promise<StepResult> {
     [
       "deno",
       "run",
-      "--allow-read",
-      "--allow-env",
-      "--allow-write",
-      "--allow-net",
+      "--allow-env=DATABASE_URL",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data,./drizzle",
       "./node_modules/drizzle-kit/bin.cjs",
       "migrate",
     ],
@@ -454,15 +477,67 @@ async function testDrizzleKitMigrate(testDir: string): Promise<StepResult> {
   };
 }
 
+async function testDrizzleKitPush(testDir: string): Promise<StepResult> {
+  // Test that drizzle-kit push works (pushes schema directly to DB)
+  // Uses separate DB but shared out/ directory (push reads schema snapshot from generate)
+  const result = await runCommand(
+    [
+      "deno",
+      "run",
+      "--allow-env=DATABASE_URL",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data-push,./drizzle",
+      "./node_modules/drizzle-kit/bin.cjs",
+      "push",
+      "--config=drizzle-push.config.ts",
+      "--force",
+    ],
+    { cwd: testDir, timeout: 60_000 },
+  );
+
+  // Trust exit code; DB verification is the real correctness check
+  return {
+    name: "Test drizzle-kit push",
+    success: result.success,
+    error: result.success ? undefined : result.stderr || "Push command failed",
+    output: (result.stdout + result.stderr).slice(0, 500),
+  };
+}
+
+async function verifyPushDatabaseSchema(testDir: string): Promise<StepResult> {
+  // Verify DB schema created by push (uses separate data-push directory)
+  // Note: push doesn't create __drizzle_migrations table, so we skip that check
+  const result = await runCommand(
+    [
+      "deno",
+      "run",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data-push",
+      "./verify-db.ts",
+      "--db", "./data-push",
+      "--skip-migrations", // push doesn't record migrations
+    ],
+    { cwd: testDir, timeout: 30_000 },
+  );
+
+  const output = result.stdout + result.stderr;
+  const success = result.success && output.includes("Verified DB schema");
+
+  return {
+    name: "Verify push DB schema",
+    success,
+    error: success ? undefined : result.stderr || "Push DB schema verification failed",
+    output: result.stdout.slice(0, 500),
+  };
+}
+
 async function verifyDatabaseSchema(testDir: string): Promise<StepResult> {
   const result = await runCommand(
     [
       "deno",
       "run",
-      "--allow-read",
-      "--allow-env",
-      "--allow-write",
-      "--allow-net",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data",
       "./verify-db.ts",
     ],
     { cwd: testDir, timeout: 30_000 },
@@ -614,6 +689,42 @@ async function testVersion(
       };
     }
     console.log("  ✓ DB schema verified");
+
+    // Step 11: Test drizzle-kit push (uses separate DB)
+    console.log("🧪 Testing drizzle-kit push...");
+    const pushResult = await testDrizzleKitPush(testDir);
+    steps.push(pushResult);
+    if (!pushResult.success) {
+      console.log(`  ❌ Failed: ${pushResult.error}`);
+      if (pushResult.output) {
+        console.log(`  Output: ${pushResult.output}`);
+      }
+      return {
+        version,
+        steps,
+        duration: Date.now() - startTime,
+        success: false,
+      };
+    }
+    console.log("  ✓ Push command works");
+
+    // Step 12: Verify push DB schema
+    console.log("🔎 Verifying push DB schema...");
+    const verifyPushDbResult = await verifyPushDatabaseSchema(testDir);
+    steps.push(verifyPushDbResult);
+    if (!verifyPushDbResult.success) {
+      console.log(`  ❌ Failed: ${verifyPushDbResult.error}`);
+      if (verifyPushDbResult.output) {
+        console.log(`  Output: ${verifyPushDbResult.output}`);
+      }
+      return {
+        version,
+        steps,
+        duration: Date.now() - startTime,
+        success: false,
+      };
+    }
+    console.log("  ✓ Push DB schema verified");
   }
 
   const duration = Date.now() - startTime;

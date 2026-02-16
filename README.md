@@ -6,15 +6,15 @@ A patch to make **drizzle-kit** compatible with **Deno**.
 > production if you understand exactly what the patch does. Review
 > [scripts/patch-drizzle-kit.ts](scripts/patch-drizzle-kit.ts) before deploying.
 
-> ℹ️ **Supported commands:** Only `generate` and `migrate` are supported. Other
-> drizzle-kit commands (`push`, `pull`, `studio`, etc.) have not been tested and
+> ℹ️ **Supported commands:** `generate`, `migrate`, and `push` are supported. Other
+> drizzle-kit commands (`pull`, `studio`, etc.) have not been tested and
 > will probably not work.
 
 ## Installation
 
 ```bash
 # In your Deno project with drizzle-kit installed:
-deno run -A jsr:@hotsauce/drizzle-kit-deno-patch
+deno run --allow-read=./node_modules --allow-write=./node_modules jsr:@hotsauce/drizzle-kit-deno-patch
 ```
 
 Or add to your `deno.jsonc` tasks:
@@ -36,11 +36,30 @@ See the [example/](example/) folder for a complete working example.
 deno install
 
 # 2. Patch drizzle-kit
-deno run -A jsr:@hotsauce/drizzle-kit-deno-patch
+deno run --allow-read=./node_modules --allow-write=./node_modules jsr:@hotsauce/drizzle-kit-deno-patch
 
-# 3. Run drizzle-kit commands
-deno run --allow-read --allow-write --allow-env ./node_modules/drizzle-kit/bin.cjs generate
+# 3. Run drizzle-kit commands with minimal permissions
+deno run \
+  --allow-env=DATABASE_URL \
+  --allow-read=.,./node_modules \
+  --allow-write=./drizzle \
+  ./node_modules/drizzle-kit/bin.cjs generate
 ```
+
+## Required Permissions
+
+Each drizzle-kit command requires specific permissions:
+
+| Command | Permissions |
+|---------|-------------|
+| `--help` | `--allow-read=.,./node_modules` |
+| `generate` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./drizzle` |
+| `migrate` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle` |
+| `push` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle` |
+
+> **Note:** The `--allow-write` paths depend on your config:
+> - `./drizzle` is the default migrations output directory
+> - `./data` is for PGlite local databases; for remote databases, use `--allow-net` instead
 
 ## The Problem
 
@@ -101,24 +120,24 @@ await patchDrizzleKit();
 
 ## How It Works
 
-### Permission Sets
+### Example Permission Sets
 
-The [example/deno.jsonc](example/deno.jsonc) defines permission sets to limit
-what drizzle-kit can access:
+The [example/deno.jsonc](example/deno.jsonc) defines permission sets for convenience:
 
 ```jsonc
-"permissions": {
-  "drizzle-kit": {
-    "read": ["./drizzle", "./drizzle.config.ts", "."],
-    "write": ["./drizzle", "./data"],
-    "env": ["DATABASE_URL", "USER", ...],
-    "net": ["db.prisma.io"]  // For introspection features
+{
+  "tasks": {
+    "db:generate": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./drizzle ./node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle ./node_modules/drizzle-kit/bin.cjs migrate",
+    "db:push": "deno run --allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle ./node_modules/drizzle-kit/bin.cjs push"
   }
 }
 ```
 
-This allows fine-grained control over file system access, environment variables,
-and network access.
+This provides fine-grained control over:
+- **File system access** - Only reads project files, only writes to migrations/DB directories
+- **Environment variables** - Only `DATABASE_URL` is exposed
+- **No network access** - For local PGlite databases; add `--allow-net` for remote databases
 
 ### The Patch Script
 
@@ -152,19 +171,22 @@ run([...]).then(() => { setTimeout(() => process.exit(0), 50); });
 
 ### Running drizzle-kit
 
-Instead of running `drizzle-kit generate`, you run the binary directly with
-Deno:
+Instead of running `drizzle-kit generate`, run the binary directly with Deno:
 
 ```bash
 # Node.js way (doesn't work with Deno)
 npx drizzle-kit generate
 
-# Deno way (after patching)
-deno run --permission-set=drizzle-kit ./node_modules/drizzle-kit/bin.cjs generate
-```
+# Deno way (after patching) - with minimal permissions
+deno run \
+  --allow-env=DATABASE_URL \
+  --allow-read=.,./node_modules \
+  --allow-write=./drizzle \
+  ./node_modules/drizzle-kit/bin.cjs generate
 
-The `--permission-set=drizzle-kit` flag uses the permissions defined in
-`deno.jsonc`.
+# Or use a task defined in deno.jsonc
+deno task db:generate
+```
 
 ## Supported drizzle-kit versions
 
@@ -195,7 +217,8 @@ The test suite performs the following checks for each version:
 6. **Runtime Tests** (full mode only):
    - `drizzle-kit --help` - Verifies basic CLI functionality
    - `drizzle-kit generate` - Verifies config and schema loading works
-  - `drizzle-kit migrate` - Applies migrations to a local PGlite DB, verifies expected table/columns exist, and checks migrations were recorded as applied
+   - `drizzle-kit migrate` - Applies migrations to a local PGlite DB, verifies expected table/columns exist, and checks migrations were recorded as applied
+   - `drizzle-kit push` - Pushes schema directly to a separate PGlite DB, verifies expected table/columns exist
 
 ### Run all tests locally
 

@@ -4,7 +4,7 @@ import { PGlite } from "@electric-sql/pglite";
 
 function usage(): never {
   console.error(
-    "Usage: deno run -A scripts/verify-db.ts [--db ./data] [--table public.users] [--columns id,name]",
+    "Usage: deno run -A scripts/verify-db.ts [--db ./data] [--table public.users] [--columns id,name] [--skip-migrations]",
   );
   Deno.exit(2);
 }
@@ -35,6 +35,7 @@ if (args.includes("--help") || args.includes("-h")) usage();
 const dbPath = getArgValue("--db", args) ?? "./data";
 const table = getArgValue("--table", args) ?? "public.users";
 const columnsCsv = getArgValue("--columns", args) ?? "id,name";
+const skipMigrations = args.includes("--skip-migrations");
 const expectedColumns = columnsCsv
   .split(",")
   .map((s) => s.trim())
@@ -60,7 +61,7 @@ if (!tables.includes(`${expectedSchema}.${expectedTable}`)) {
   await db.close();
   fail(
     "❌ Expected table " + `${expectedSchema}.${expectedTable}` +
-      " to exist after migrate; found: " +
+      " to exist; found: " +
       (tables.length ? tables.join(", ") : "<none>"),
   );
 }
@@ -89,15 +90,21 @@ console.log(
   `✅ Verified DB schema: ${expectedSchema}.${expectedTable}(${expectedColumns.join(", ")})`,
 );
 
-// Verify migrations were recorded as applied.
+// Verify migrations were recorded as applied (unless --skip-migrations).
 // drizzle-kit typically uses a table named __drizzle_migrations (schema may vary).
+if (skipMigrations) {
+  console.log(`ℹ️  Skipping migrations table check (--skip-migrations)`);
+  await db.close();
+  Deno.exit(0);
+}
+
 const migTableRes = await db.query(
   "select table_schema, table_name from information_schema.tables where table_type = 'BASE TABLE' and table_name = '__drizzle_migrations'",
 );
 const migRows = migTableRes?.rows ?? [];
 if (migRows.length === 0) {
   await db.close();
-  fail("❌ Expected __drizzle_migrations table to exist after migrate");
+  fail("❌ Expected __drizzle_migrations table to exist");
 }
 
 // Pick the first schema that contains the migrations table.
