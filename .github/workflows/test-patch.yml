@@ -50,9 +50,8 @@ jobs:
             ~/.cache/deno
             ~/.deno
           # Include patch script in cache key so cache busts when patch version changes
+          # No restore-keys fallback - stale caches have patched npm packages that can't be re-patched
           key: ${{ runner.os }}-deno-${{ hashFiles('deno.jsonc', 'deno.lock', 'scripts/patch-drizzle-kit.ts') }}
-          restore-keys: |
-            ${{ runner.os }}-deno-
 
       - name: Install dependencies
         run: deno install
