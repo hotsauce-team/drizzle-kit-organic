@@ -1,30 +1,13 @@
 # drizzle-kit-deno
 
-A patch to make **drizzle-kit** compatible with **Deno**.
+A patch to make **drizzle-kit** compatible with **Deno** and leverage its secure permission model.
 
-> ⚠️ **Warning:** This patch modifies drizzle-kit's bundled code. Only use in
+> ⚠️ **Important:** This patch modifies drizzle-kit's bundled code. Only use in
 > production if you understand exactly what the patch does. Review
 > [scripts/patch-drizzle-kit.ts](scripts/patch-drizzle-kit.ts) before deploying.
 
 > ℹ️ **Supported commands:** `generate`, `migrate`, `push`, and `pull` are supported.
 > `studio` has not been tested and will probably not work.
-
-## Installation
-
-```bash
-# In your Deno project with drizzle-kit installed:
-deno run --allow-read=./node_modules --allow-write=./node_modules jsr:@hotsauce/drizzle-kit-deno-patch
-```
-
-Or add to your `deno.jsonc` tasks:
-
-```jsonc
-{
-  "tasks": {
-    "patch": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.9 jsr:@hotsauce/drizzle-kit-deno-patch"
-  }
-}
-```
 
 ## Quick Start
 
@@ -43,7 +26,54 @@ deno run \
   --allow-read=.,./node_modules \
   --allow-write=./drizzle \
   ./node_modules/drizzle-kit/bin.cjs generate
+
+# 4. Success! Check ./drizzle for your generated migrations
 ```
+
+## Installation
+
+```bash
+# In your Deno project with drizzle-kit installed:
+deno run --allow-read=./node_modules --allow-write=./node_modules jsr:@hotsauce/drizzle-kit-deno-patch
+```
+
+Or add to your `deno.jsonc` tasks:
+
+```jsonc
+{
+  "tasks": {
+    "patch": "deno run --allow-read=./node_modules --allow-write=./node_modules/.deno/drizzle-kit@0.31.9 jsr:@hotsauce/drizzle-kit-deno-patch"
+  }
+}
+```
+
+## The Problem
+
+Drizzle-kit is designed for Node.js and has several incompatibilities with Deno:
+
+1. **Unnecessary transpilation overhead** — drizzle-kit uses esbuild for TypeScript transpilation. Why download extra tooling when Deno can run TypeScript natively?
+
+2. **Overly broad environment access** — Several libraries eagerly check environment variables at load time (dotenv, chalk, etc.). Your drizzle-kit command likely only needs `DATABASE_URL`, not access to your entire environment.
+
+3. **Unconstrained path traversal** — drizzle-kit walks parent directories looking for `tsconfig.json`, potentially all the way to your home directory. This is unnecessary; blocking it tightens your security posture.
+
+4. **CommonJS `require()` calls** — These should be replaced with `import()` since we're using TypeScript and ES modules now.
+
+5. **Eager OS system calls** — `os.homedir()` and `os.tmpdir()` are called at load time, triggering permission prompts even when your command doesn't need them.
+
+## The Solution
+
+A patch script that modifies drizzle-kit's bundled `bin.cjs` file to:
+
+1. **Block path traversal** — Disables `walkForTsConfig` and `recursivelyResolveSync` so drizzle-kit stays within your project directory.
+
+2. **Skip unnecessary transpilation** — Disables `safeRegister` (esbuild) since Deno handles TypeScript natively.
+
+3. **Use native imports** — Replaces `require()` with `import()` for loading config and schema files.
+
+4. **Minimize environment access** — Stubs color support functions to avoid eager env var checks at load time.
+
+5. **Defer OS calls** — Defers `os.homedir()` and `os.tmpdir()` calls to avoid permission prompts.
 
 ## Required Permissions
 
@@ -60,32 +90,6 @@ Each drizzle-kit command requires specific permissions:
 > **Note:** The `--allow-write` paths depend on your config:
 > - `./drizzle` is the default migrations output directory
 > - `./data` is for PGlite local databases; for remote databases, use `--allow-net` instead
-
-## The Problem
-
-Drizzle-kit is designed for Node.js and has several incompatibilities with Deno:
-
-1. **`require()` calls** - Deno doesn't support CommonJS `require()` for
-   TypeScript files
-2. **esbuild dependency** - Uses esbuild for TypeScript transpilation (Deno has
-   native TS support)
-3. **Directory traversal** - Walks parent directories looking for tsconfig.json
-   (permission issues)
-4. **Eager environment checks** - Several libraries check env vars at load time
-   (dotenv, chalk, etc.)
-5. **Blocking event loop** - Commands don't exit cleanly after completion
-
-## The Solution
-
-A patch script that modifies drizzle-kit's bundled `bin.cjs` file to:
-
-1. Disable `walkForTsConfig` and `recursivelyResolveSync` (prevents permission
-   issues)
-2. Disable `safeRegister` (removes esbuild dependency)
-3. Replace `require()` with `import()` for loading TS config and schema files
-4. Stub color support functions to avoid env var checks at load time
-5. Defer `os.homedir()` and `os.tmpdir()` calls to avoid permission prompts
-6. Add `process.exit(0)` after commands complete (prevents hanging)
 
 ## Features
 
