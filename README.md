@@ -1,5 +1,8 @@
 # drizzle-kit-deno
 
+[![JSR](https://jsr.io/badges/@hotsauce/drizzle-kit-deno-patch)](https://jsr.io/@hotsauce/drizzle-kit-deno-patch)
+[![CI](https://github.com/hotsauce-team/drizzle-kit-deno-patch/actions/workflows/test-patch.yml/badge.svg)](https://github.com/hotsauce-team/drizzle-kit-deno-patch/actions/workflows/test-patch.yml)
+
 A patch to make **drizzle-kit** compatible with **Deno** and leverage its secure permission model.
 
 > ⚠️ **Important:** This patch modifies drizzle-kit's bundled code. Only use in
