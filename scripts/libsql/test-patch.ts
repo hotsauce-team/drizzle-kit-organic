@@ -302,12 +302,14 @@ async function testDrizzleKitMigrate(testDir: string): Promise<StepResult> {
   // Test that drizzle-kit migrate works (applies migrations to SQLite DB)
   // LIBSQL_JS_NODE=1 tells patched drizzle-kit to use @libsql/client/node for file: URLs
   // --allow-ffi needed for libsql native bindings
+  // --allow-sys needed on Linux for glibc detection
   // --allow-env needed for libsql internal env checks
   const result = await runCommand(
     [
       "deno",
       "run",
       "--allow-env",
+      "--allow-sys=cpus",
       "--allow-read=.,./node_modules",
       "--allow-write=./data.db,./data.db-journal,./drizzle",
       "--allow-ffi",
@@ -336,6 +338,7 @@ async function verifyDatabaseSchema(testDir: string): Promise<StepResult> {
       "deno",
       "run",
       "--allow-env",
+      "--allow-sys=cpus",
       "--allow-read=.,./node_modules",
       "--allow-write=./data.db,./data.db-journal",
       "--allow-ffi",
@@ -364,6 +367,7 @@ async function testDrizzleKitPush(testDir: string): Promise<StepResult> {
       "deno",
       "run",
       "--allow-env",
+      "--allow-sys=cpus",
       "--allow-read=.,./node_modules",
       "--allow-write=./data-push.db,./data-push.db-journal,./drizzle",
       "--allow-ffi",
@@ -392,6 +396,7 @@ async function verifyPushDatabaseSchema(testDir: string): Promise<StepResult> {
       "deno",
       "run",
       "--allow-env",
+      "--allow-sys=cpus",
       "--allow-read=.,./node_modules",
       "--allow-write=./data-push.db,./data-push.db-journal",
       "--allow-ffi",
@@ -421,6 +426,7 @@ async function testDrizzleKitPull(testDir: string): Promise<StepResult> {
       "deno",
       "run",
       "--allow-env",
+      "--allow-sys=cpus",
       "--allow-read=.,./node_modules",
       "--allow-write=./drizzle-pull",
       "--allow-ffi",
