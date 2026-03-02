@@ -31,4 +31,4 @@
     "@libsql/client": "npm:@libsql/client@^0.14.0",
     "libsql": "npm:libsql@^0.4.7"
   }
-}7
+}
