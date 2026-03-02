@@ -14,8 +14,8 @@
 
   "tasks": {
     // Test the patch against multiple drizzle-kit versions
-    "test": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/pgsql/test-patch.ts",
-    "test:quick": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/pgsql/test-patch.ts --quick",
+    "test:pglite": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/pgsql/test-patch.ts",
+    "test:pglite:quick": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/pgsql/test-patch.ts --quick",
     "test:libsql": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/libsql/test-patch.ts"
   },
 

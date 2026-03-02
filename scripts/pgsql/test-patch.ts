@@ -286,7 +286,7 @@ async function verifyPatchMarker(testDir: string): Promise<StepResult> {
     ) {
       if (entry.isFile) {
         const content = await Deno.readTextFile(entry.path);
-        const hasMarker = content.includes("DRIZZLE-KIT-DENO-PATCHED-V11");
+        const hasMarker = content.includes("DRIZZLE-KIT-DENO-PATCHED-V12");
 
         return {
           name: "Verify patch marker",
