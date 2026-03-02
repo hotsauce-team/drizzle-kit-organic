@@ -32,8 +32,11 @@ jobs:
           fi
           echo "✅ Version $TAG_VERSION matches"
 
-      - name: Run tests
-        run: deno task test
+      - name: Run tests (pglite)
+        run: deno task test:pglite
+
+      - name: Run tests (libsql)
+        run: deno task test:libsql
 
       - name: Show lockfile changes (if any)
         run: git diff deno.lock || true
