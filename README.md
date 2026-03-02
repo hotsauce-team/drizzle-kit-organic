@@ -12,6 +12,8 @@ A patch to make **drizzle-kit** compatible with **Deno** and leverage its secure
 > ℹ️ **Supported commands:** `generate`, `migrate`, `push`, and `pull` are supported.
 > `studio` has not been tested and will probably not work.
 
+> ℹ️ **Supported databases:** PostgreSQL (via PGlite or remote), SQLite/LibSQL (via `@libsql/client`).
+
 ## Quick Start
 
 See the [example/](example/) folder for a complete working example.
@@ -64,6 +66,8 @@ Drizzle-kit is designed for Node.js and has several incompatibilities with Deno:
 
 5. **Eager OS system calls** — `os.homedir()` and `os.tmpdir()` are called at load time, triggering permission prompts even when your command doesn't need them.
 
+6. **LibSQL web client only** — Deno uses the web version of `@libsql/client` by default, which is great for serverless platforms like Deno Deploy but doesn't support local `file:` URLs. This breaks drizzle-kit when using SQLite database files.
+
 ## The Solution
 
 A patch script that modifies drizzle-kit's bundled `bin.cjs` file to:
@@ -77,6 +81,8 @@ A patch script that modifies drizzle-kit's bundled `bin.cjs` file to:
 4. **Minimize environment access** — Stubs color support functions to avoid eager env var checks at load time.
 
 5. **Defer OS calls** — Defers `os.homedir()` and `os.tmpdir()` calls to avoid permission prompts.
+
+6. **Support local SQLite files** — Allows switching to `@libsql/client/node` via the `LIBSQL_JS_NODE` env var for local `file:` URL support.
 
 ## Required Permissions
 
@@ -98,6 +104,9 @@ Each drizzle-kit command requires specific permissions:
 
 - **JSR packages in schema** - Your schema files can import from JSR (`@std/*`,
   etc.) since Deno handles the imports natively
+
+- **LibSQL / SQLite support** - Use `@libsql/client` for SQLite databases; set
+  `LIBSQL_JS_NODE=1` for local `file:` URLs. See tests for examples.
 
 ## Project Structure
 

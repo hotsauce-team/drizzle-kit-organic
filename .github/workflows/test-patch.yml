@@ -5,13 +5,15 @@ on:
     branches: [main]
     paths:
       - "scripts/patch-drizzle-kit.ts"
-      - "scripts/test-patch.ts"
+      - "scripts/pgsql/**"
+      - "scripts/libsql/**"
       - ".github/workflows/test-patch.yml"
   pull_request:
     branches: [main]
     paths:
       - "scripts/patch-drizzle-kit.ts"
-      - "scripts/test-patch.ts"
+      - "scripts/pgsql/**"
+      - "scripts/libsql/**"
       - ".github/workflows/test-patch.yml"
   workflow_dispatch:
     inputs:
@@ -26,8 +28,8 @@ on:
         default: false
 
 jobs:
-  test-patch:
-    name: Test Patch - drizzle-kit@${{ matrix.version }}
+  test-pglite:
+    name: Test PGlite - drizzle-kit@${{ matrix.version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -68,7 +70,7 @@ jobs:
         run: deno install
 
       - name: Cache test script dependencies
-        run: deno cache --config deno.jsonc scripts/test-patch.ts
+        run: deno cache --config deno.jsonc scripts/pgsql/test-patch.ts
 
       - name: Clean test directory
         run: rm -rf .test-patch
@@ -77,8 +79,59 @@ jobs:
         # Ensures we get fresh unpatched drizzle-kit for each test run
         run: rm -rf ~/.cache/deno/npm/registry.npmjs.org/drizzle-kit
 
-      - name: Run patch test for drizzle-kit@${{ matrix.version }}
-        run: deno run --allow-read=scripts,deno.jsonc,.test-patch --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts ${{ matrix.version }}
+      - name: Run PGlite test for drizzle-kit@${{ matrix.version }}
+        run: deno run --allow-read=scripts,deno.jsonc,.test-patch --allow-write=.test-patch --allow-run=deno --allow-net scripts/pgsql/test-patch.ts ${{ matrix.version }}
+
+  test-libsql:
+    name: Test LibSQL - drizzle-kit@${{ matrix.version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ["0.30.6", "0.31.8", "0.31.9"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Ensure latest Deno
+        run: |
+          INSTALLED=$(deno --version | head -1 | cut -d' ' -f2)
+          LATEST=$(curl -s https://dl.deno.land/release-latest.txt | tr -d 'v')
+          echo "Installed: $INSTALLED"
+          echo "Latest:    $LATEST"
+          if [ "$INSTALLED" != "$LATEST" ]; then
+            echo "Upgrading Deno from $INSTALLED to $LATEST..."
+            deno upgrade
+          fi
+
+      - name: Cache Deno dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/deno
+            ~/.deno
+          key: ${{ runner.os }}-deno-libsql-${{ hashFiles('deno.jsonc', 'deno.lock', 'scripts/patch-drizzle-kit.ts') }}
+
+      - name: Install dependencies
+        run: deno install
+
+      - name: Cache test script dependencies
+        run: deno cache --config deno.jsonc scripts/libsql/test-patch.ts
+
+      - name: Clean test directory
+        run: rm -rf .test-patch-sqlite
+
+      - name: Clear drizzle-kit from npm cache
+        run: rm -rf ~/.cache/deno/npm/registry.npmjs.org/drizzle-kit
+
+      - name: Run LibSQL test for drizzle-kit@${{ matrix.version }}
+        run: deno run --allow-read=scripts,deno.jsonc,.test-patch-sqlite --allow-write=.test-patch-sqlite --allow-run=deno --allow-net --allow-env scripts/libsql/test-patch.ts ${{ matrix.version }}
 
   # Optional: Run quick tests for all versions in a single job
   test-patch-quick:
@@ -99,7 +152,7 @@ jobs:
         run: deno install
 
       - name: Cache test script dependencies
-        run: deno cache --config deno.jsonc scripts/test-patch.ts
+        run: deno cache --config deno.jsonc scripts/pgsql/test-patch.ts
 
       - name: Clean test directory
         run: rm -rf .test-patch
@@ -109,19 +162,23 @@ jobs:
         run: rm -rf ~/.cache/deno/npm/registry.npmjs.org/drizzle-kit
 
       - name: Run quick patch tests
-        run: deno run --allow-read=scripts,deno.jsonc,.test-patch --allow-write=.test-patch --allow-run=deno --allow-net scripts/test-patch.ts --quick
+        run: deno run --allow-read=scripts,deno.jsonc,.test-patch --allow-write=.test-patch --allow-run=deno --allow-net scripts/pgsql/test-patch.ts --quick
 
   # Summary job that depends on all matrix jobs
   test-summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [test-patch]
+    needs: [test-pglite, test-libsql]
     if: always()
 
     steps:
       - name: Check test results
         run: |
-          if [[ "${{ needs.test-patch.result }}" == "success" ]]; then
+          PGLITE="${{ needs.test-pglite.result }}"
+          LIBSQL="${{ needs.test-libsql.result }}"
+          echo "PGlite tests: $PGLITE"
+          echo "LibSQL tests: $LIBSQL"
+          if [[ "$PGLITE" == "success" && "$LIBSQL" == "success" ]]; then
             echo "✅ All patch compatibility tests passed!"
             exit 0
           else

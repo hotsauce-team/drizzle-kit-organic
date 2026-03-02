@@ -14,8 +14,9 @@
 
   "tasks": {
     // Test the patch against multiple drizzle-kit versions
-    "test": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/test-patch.ts",
-    "test:quick": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/test-patch.ts --quick"
+    "test:pglite": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/pgsql/test-patch.ts",
+    "test:pglite:quick": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/pgsql/test-patch.ts --quick",
+    "test:libsql": "deno run --allow-read --allow-write --allow-run --allow-env --allow-net scripts/libsql/test-patch.ts"
   },
 
   "imports": {
@@ -23,7 +24,11 @@
     "@std/fs": "jsr:@std/fs@1",
     "@std/cli": "jsr:@std/cli@1",
 
-    // Used by scripts/verify-db.ts (copied into test environments)
-    "@electric-sql/pglite": "npm:@electric-sql/pglite@^0.3.15"
+    // Used by scripts/pgsql/verify-db.ts (copied into test environments)
+    "@electric-sql/pglite": "npm:@electric-sql/pglite@^0.3.15",
+
+    // Used by scripts/libsql/verify-db.ts (copied into test environments)
+    "@libsql/client": "npm:@libsql/client@^0.14.0",
+    "libsql": "npm:libsql@^0.4.7"
   }
 }

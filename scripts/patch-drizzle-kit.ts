@@ -10,12 +10,13 @@
  * 6. Stubs color support functions - avoids env var checks at load time
  * 7. Defers homedir/tmpdir calls - avoids permission prompts at load time
  * 8. Stubs test-only env vars - avoids permission errors for __MINIMATCH_TESTING_PLATFORM__ and TEST_CONFIG_PATH_PREFIX
+ * 9. Uses @libsql/client/node via LIBSQL_JS_NODE env var - enables file: URL support for local SQLite
  */
 
 import { walk } from "@std/fs/walk";
 
 const NODE_MODULES = "./node_modules";
-const PATCH_MARKER = "// DRIZZLE-KIT-DENO-PATCHED-V11";
+const PATCH_MARKER = "// DRIZZLE-KIT-DENO-PATCHED-V12";
 
 /** Drizzle-kit versions that have been tested with this patch */
 export const SUPPORTED_VERSIONS = ["0.30.6", "0.31.8", "0.31.9"];
@@ -122,7 +123,7 @@ export async function patchDrizzleKit() {
 
   // Check if already patched with current version
   if (content.includes(PATCH_MARKER)) {
-    console.log("✅ drizzle-kit already patched (v11)");
+    console.log("✅ drizzle-kit already patched (v12)");
     return;
   }
 
@@ -130,7 +131,7 @@ export async function patchDrizzleKit() {
   const oldPatchMatch = content.match(/\/\/ DRIZZLE-KIT-DENO-PATCHED-V(\d+)/);
   if (oldPatchMatch) {
     console.log(
-      `♻️  Found older patch (v${oldPatchMatch[1]}), will re-patch to v11`,
+      `♻️  Found older patch (v${oldPatchMatch[1]}), will re-patch to v12`,
     );
     // Note: We proceed to patch over the old version
   }
@@ -340,6 +341,21 @@ var _getTmpdir = () => { if (!tmpdir) tmpdir = import_node_os2.default.tmpdir();
       "lazy tmpdir usage",
       /import_node_path\.default\.join\(tmpdir,/g,
       `import_node_path.default.join(_getTmpdir(),`,
+    );
+    content = newContent;
+    results.push(result);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // Patch 5e: Allow @libsql/client/node via LIBSQL_JS_NODE env var
+  // Set LIBSQL_JS_NODE=1 to use the node client (supports file: URLs)
+  // ─────────────────────────────────────────────────────────────
+  {
+    const { content: newContent, result } = applyPatch(
+      content,
+      "libsql client env switch",
+      /const \{ createClient \} = await import\("@libsql\/client"\);/g,
+      `const { createClient } = await import(process.env.LIBSQL_JS_NODE ? "@libsql/client/node" : "@libsql/client"); /* PATCHED: LIBSQL_JS_NODE=1 for file: URLs */`,
     );
     content = newContent;
     results.push(result);
