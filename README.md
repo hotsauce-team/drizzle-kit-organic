@@ -3,16 +3,18 @@
 [![JSR](https://jsr.io/badges/@hotsauce/drizzle-kit-deno-patch)](https://jsr.io/@hotsauce/drizzle-kit-deno-patch)
 [![CI](https://github.com/hotsauce-team/drizzle-kit-deno-patch/actions/workflows/test-patch.yml/badge.svg)](https://github.com/hotsauce-team/drizzle-kit-deno-patch/actions/workflows/test-patch.yml)
 
-A patch to make **drizzle-kit** compatible with **Deno** and leverage its secure permission model.
+A patch to make **drizzle-kit** compatible with **Deno** and leverage its secure
+permission model.
 
 > ⚠️ **Important:** This patch modifies drizzle-kit's bundled code. Only use in
 > production if you understand exactly what the patch does. Review
 > [scripts/patch-drizzle-kit.ts](scripts/patch-drizzle-kit.ts) before deploying.
 
-> ℹ️ **Supported commands:** `generate`, `migrate`, `push`, and `pull` are supported.
-> `studio` has not been tested and will probably not work.
+> ℹ️ **Supported commands:** `generate`, `migrate`, `push`, and `pull` are
+> supported. `studio` has not been tested and will probably not work.
 
-> ℹ️ **Supported databases:** PostgreSQL (via PGlite or remote), SQLite/LibSQL (via `@libsql/client`).
+> ℹ️ **Supported databases:** PostgreSQL (via PGlite or remote), SQLite/LibSQL
+> (via `@libsql/client` or `node:sqlite`).
 
 ## Quick Start
 
@@ -56,49 +58,70 @@ Or add to your `deno.jsonc` tasks:
 
 Drizzle-kit is designed for Node.js and has several incompatibilities with Deno:
 
-1. **Unnecessary transpilation overhead** — drizzle-kit uses esbuild for TypeScript transpilation. Why download extra tooling when Deno can run TypeScript natively?
+1. **Unnecessary transpilation overhead** — drizzle-kit uses esbuild for
+   TypeScript transpilation. Why download extra tooling when Deno can run
+   TypeScript natively?
 
-2. **Overly broad environment access** — Several libraries eagerly check environment variables at load time (dotenv, chalk, etc.). Your drizzle-kit command likely only needs `DATABASE_URL`, not access to your entire environment.
+2. **Overly broad environment access** — Several libraries eagerly check
+   environment variables at load time (dotenv, chalk, etc.). Your drizzle-kit
+   command likely only needs `DATABASE_URL`, not access to your entire
+   environment.
 
-3. **Unconstrained path traversal** — drizzle-kit walks parent directories looking for `tsconfig.json`, potentially all the way to your home directory. This is unnecessary; blocking it tightens your security posture.
+3. **Unconstrained path traversal** — drizzle-kit walks parent directories
+   looking for `tsconfig.json`, potentially all the way to your home directory.
+   This is unnecessary; blocking it tightens your security posture.
 
-4. **CommonJS `require()` calls** — These should be replaced with `import()` since we're using TypeScript and ES modules now.
+4. **CommonJS `require()` calls** — These should be replaced with `import()`
+   since we're using TypeScript and ES modules now.
 
-5. **Eager OS system calls** — `os.homedir()` and `os.tmpdir()` are called at load time, triggering permission prompts even when your command doesn't need them.
+5. **Eager OS system calls** — `os.homedir()` and `os.tmpdir()` are called at
+   load time, triggering permission prompts even when your command doesn't need
+   them.
 
-6. **LibSQL web client only** — Deno uses the web version of `@libsql/client` by default, which is great for serverless platforms like Deno Deploy but doesn't support local `file:` URLs. This breaks drizzle-kit when using SQLite database files.
+6. **LibSQL web client only** — Deno uses the web version of `@libsql/client` by
+   default, which is great for serverless platforms like Deno Deploy but doesn't
+   support local `file:` URLs. This breaks drizzle-kit when using SQLite
+   database files.
 
 ## The Solution
 
 A patch script that modifies drizzle-kit's bundled `bin.cjs` file to:
 
-1. **Block path traversal** — Disables `walkForTsConfig` and `recursivelyResolveSync` so drizzle-kit stays within your project directory.
+1. **Block path traversal** — Disables `walkForTsConfig` and
+   `recursivelyResolveSync` so drizzle-kit stays within your project directory.
 
-2. **Skip unnecessary transpilation** — Disables `safeRegister` (esbuild) since Deno handles TypeScript natively.
+2. **Skip unnecessary transpilation** — Disables `safeRegister` (esbuild) since
+   Deno handles TypeScript natively.
 
-3. **Use native imports** — Replaces `require()` with `import()` for loading config and schema files.
+3. **Use native imports** — Replaces `require()` with `import()` for loading
+   config and schema files.
 
-4. **Minimize environment access** — Stubs color support functions to avoid eager env var checks at load time.
+4. **Minimize environment access** — Stubs color support functions to avoid
+   eager env var checks at load time.
 
-5. **Defer OS calls** — Defers `os.homedir()` and `os.tmpdir()` calls to avoid permission prompts.
+5. **Defer OS calls** — Defers `os.homedir()` and `os.tmpdir()` calls to avoid
+   permission prompts.
 
-6. **Support local SQLite files** — Allows switching to `@libsql/client/node` via the `LIBSQL_JS_NODE` env var for local `file:` URL support.
+6. **Support local SQLite files** — Allows switching to `@libsql/client/node`
+   via the `LIBSQL_JS_NODE` env var for local `file:` URL support.
 
 ## Required Permissions
 
 Each drizzle-kit command requires specific permissions:
 
-| Command | Permissions |
-|---------|-------------|
-| `--help` | `--allow-read=.,./node_modules` |
-| `generate` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./drizzle` |
-| `migrate` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle` |
-| `push` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle` |
-| `pull` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle-pull` |
+| Command    | Permissions                                                                                  |
+| ---------- | -------------------------------------------------------------------------------------------- |
+| `--help`   | `--allow-read=.,./node_modules`                                                              |
+| `generate` | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./drizzle`             |
+| `migrate`  | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle`      |
+| `push`     | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle`      |
+| `pull`     | `--allow-env=DATABASE_URL --allow-read=.,./node_modules --allow-write=./data,./drizzle-pull` |
 
 > **Note:** The `--allow-write` paths depend on your config:
+>
 > - `./drizzle` is the default migrations output directory
-> - `./data` is for PGlite local databases; for remote databases, use `--allow-net` instead
+> - `./data` is for PGlite local databases; for remote databases, use
+>   `--allow-net` instead
 
 ## Features
 
@@ -107,6 +130,60 @@ Each drizzle-kit command requires specific permissions:
 
 - **LibSQL / SQLite support** - Use `@libsql/client` for SQLite databases; set
   `LIBSQL_JS_NODE=1` for local `file:` URLs. See tests for examples.
+
+- **Node SQLite support** - Use `node:sqlite` instead of `@libsql/client` by
+  setting `SQLITE_NODE=1`. No additional dependencies required.
+
+## Using node:sqlite with drizzle-kit
+
+If you prefer using Deno/Node's built-in `node:sqlite` module instead of
+`@libsql/client`, you can enable it with the `SQLITE_NODE=1` environment
+variable. This support is built directly into the patched drizzle-kit - no
+additional packages needed.
+
+### Configuration
+
+Your `drizzle.config.ts` is straightforward:
+
+```typescript
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  schema: "./schema.ts",
+  out: "./drizzle",
+  dialect: "sqlite",
+  dbCredentials: {
+    url: "file:./data.db",
+  },
+});
+```
+
+### Running drizzle-kit with node:sqlite
+
+```bash
+# Generate migrations
+SQLITE_NODE=1 deno run \
+  --allow-env --allow-read=.,./node_modules --allow-write=./drizzle \
+  ./node_modules/drizzle-kit/bin.cjs generate
+
+# Apply migrations
+SQLITE_NODE=1 deno run \
+  --allow-env --allow-read=.,./node_modules --allow-write=./data.db,./data.db-wal,./drizzle \
+  ./node_modules/drizzle-kit/bin.cjs migrate
+
+# Push schema directly
+SQLITE_NODE=1 deno run \
+  --allow-env --allow-read=.,./node_modules --allow-write=./data.db,./data.db-wal,./drizzle \
+  ./node_modules/drizzle-kit/bin.cjs push
+```
+
+### Why use node:sqlite?
+
+- **No native dependencies** - `@libsql/client` requires native FFI bindings,
+  while `node:sqlite` is built into Deno 2.x and Node.js 22+
+- **Simpler permissions** - No `--allow-ffi` or `--allow-sys` required
+- **Consistent runtime** - Use the same SQLite driver for both your app (via
+  `drizzle-orm/sqlite-proxy`) and drizzle-kit migrations
 
 ## Project Structure
 
@@ -138,7 +215,8 @@ await patchDrizzleKit();
 
 ### Example Permission Sets
 
-The [example/deno.jsonc](example/deno.jsonc) defines permission sets for convenience:
+The [example/deno.jsonc](example/deno.jsonc) defines permission sets for
+convenience:
 
 ```jsonc
 {
@@ -152,9 +230,12 @@ The [example/deno.jsonc](example/deno.jsonc) defines permission sets for conveni
 ```
 
 This provides fine-grained control over:
-- **File system access** - Only reads project files, only writes to migrations/DB directories
+
+- **File system access** - Only reads project files, only writes to
+  migrations/DB directories
 - **Environment variables** - Only `DATABASE_URL` is exposed
-- **No network access** - For local PGlite databases; add `--allow-net` for remote databases
+- **No network access** - For local PGlite databases; add `--allow-net` for
+  remote databases
 
 ### The Patch Script
 
@@ -234,9 +315,13 @@ The test suite performs the following checks for each version:
 6. **Runtime Tests** (full mode only):
    - `drizzle-kit --help` - Verifies basic CLI functionality
    - `drizzle-kit generate` - Verifies config and schema loading works
-   - `drizzle-kit migrate` - Applies migrations to a local PGlite DB, verifies expected table/columns exist, and checks migrations were recorded as applied
-   - `drizzle-kit push` - Pushes schema directly to a separate PGlite DB, verifies expected table/columns exist
-   - `drizzle-kit pull` - Introspects a PGlite DB (created via raw SQL) and verifies a schema file is generated with expected table definitions
+   - `drizzle-kit migrate` - Applies migrations to a local PGlite DB, verifies
+     expected table/columns exist, and checks migrations were recorded as
+     applied
+   - `drizzle-kit push` - Pushes schema directly to a separate PGlite DB,
+     verifies expected table/columns exist
+   - `drizzle-kit pull` - Introspects a PGlite DB (created via raw SQL) and
+     verifies a schema file is generated with expected table definitions
 
 ### Run all tests locally
 

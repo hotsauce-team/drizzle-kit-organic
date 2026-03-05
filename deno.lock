@@ -1,6 +1,8 @@
 {
   "version": "5",
   "specifiers": {
+    "jsr:@hotsauce/drizzle-runtime-sqlite@*": "0.1.1",
+    "jsr:@hotsauce/drizzle-runtime-sqlite@0.1.2": "0.1.2",
     "jsr:@std/cli@1": "1.0.27",
     "jsr:@std/fmt@^1.0.9": "1.0.9",
     "jsr:@std/fs@1": "1.0.22",
@@ -8,9 +10,23 @@
     "jsr:@std/path@^1.1.4": "1.1.4",
     "npm:@electric-sql/pglite@~0.3.15": "0.3.15",
     "npm:@libsql/client@0.14": "0.14.0",
+    "npm:create-vite@latest": "8.3.0",
+    "npm:drizzle-orm@0.45.1": "0.45.1_@electric-sql+pglite@0.3.15_@libsql+client@0.14.0",
     "npm:libsql@~0.4.7": "0.4.7"
   },
   "jsr": {
+    "@hotsauce/drizzle-runtime-sqlite@0.1.1": {
+      "integrity": "ca62bbf39a073a132d51f47509c83b0ea757f632a53619012f1c20d0201e2d05",
+      "dependencies": [
+        "npm:drizzle-orm"
+      ]
+    },
+    "@hotsauce/drizzle-runtime-sqlite@0.1.2": {
+      "integrity": "763f30a8586a89afd3c218d97a130eace055e9610a88c89807f918ab948d4720",
+      "dependencies": [
+        "npm:drizzle-orm"
+      ]
+    },
     "@std/cli@1.0.27": {
       "integrity": "eba97edd0891871a7410e835dd94b3c260c709cca5983df2689c25a71fbe04de",
       "dependencies": [
@@ -127,11 +143,26 @@
         "@types/node"
       ]
     },
+    "create-vite@8.3.0": {
+      "integrity": "sha512-58bnPOiwODNTOV60tS/zttmTG1V1xZJThqqvpDPmp0i55fT9i2YsjWdnx7uFy0/FmWRUv4HJeEPlq6zAW3hwTQ==",
+      "bin": true
+    },
     "data-uri-to-buffer@4.0.1": {
       "integrity": "sha512-0R9ikRb668HB7QDxT1vkpuUBtqc53YyAwMwGeUFKRojY/NWKvdZ+9UYtRfGmhqNbRkTSVpMbmyhXipFFv2cb/A=="
     },
     "detect-libc@2.0.2": {
       "integrity": "sha512-UX6sGumvvqSaXgdKGUsgZWqcUyIXZ/vZTrlRT/iobiKhGL0zL4d3osHj3uqllWJK+i+sixDS/3COVEOFbupFyw=="
+    },
+    "drizzle-orm@0.45.1_@electric-sql+pglite@0.3.15_@libsql+client@0.14.0": {
+      "integrity": "sha512-Te0FOdKIistGNPMq2jscdqngBRfBpC8uMFVwqjf6gtTVJHIQ/dosgV/CLBU2N4ZJBsXL5savCba9b0YJskKdcA==",
+      "dependencies": [
+        "@electric-sql/pglite",
+        "@libsql/client"
+      ],
+      "optionalPeers": [
+        "@electric-sql/pglite",
+        "@libsql/client"
+      ]
     },
     "fetch-blob@3.2.0": {
       "integrity": "sha512-7yAQpD2UMJzLi1Dqv7qFYnPbaPx7ZfFK6PiIxQ4PfkGPyNyl2Ugx+a/umUonmKqjhM4DnfbMvdX6otXq83soQQ==",

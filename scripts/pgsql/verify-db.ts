@@ -87,7 +87,9 @@ for (const expected of expectedColumns) {
 }
 
 console.log(
-  `✅ Verified DB schema: ${expectedSchema}.${expectedTable}(${expectedColumns.join(", ")})`,
+  `✅ Verified DB schema: ${expectedSchema}.${expectedTable}(${
+    expectedColumns.join(", ")
+  })`,
 );
 
 // Verify migrations were recorded as applied (unless --skip-migrations).
@@ -109,7 +111,9 @@ if (migRows.length === 0) {
 
 // Pick the first schema that contains the migrations table.
 const migSchema = String(getField(migRows[0], 0, "table_schema") ?? "public");
-const migName = String(getField(migRows[0], 1, "table_name") ?? "__drizzle_migrations");
+const migName = String(
+  getField(migRows[0], 1, "table_name") ?? "__drizzle_migrations",
+);
 
 // Count applied migrations.
 const countSql = `select count(*)::int as n from "${migSchema}"."${migName}"`;
@@ -123,5 +127,7 @@ if (!Number.isFinite(n) || n <= 0) {
   );
 }
 
-console.log(`✅ Verified migrations journal: ${migSchema}.${migName} rows=${n}`);
+console.log(
+  `✅ Verified migrations journal: ${migSchema}.${migName} rows=${n}`,
+);
 await db.close();

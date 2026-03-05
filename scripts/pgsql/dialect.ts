@@ -104,10 +104,14 @@ const CRITICAL_PATCHES = [
   },
   {
     name: "safeRegister",
-    pattern: "return { unregister: () => {} }; // PATCHED: esbuild disabled for Deno",
+    pattern:
+      "return { unregister: () => {} }; // PATCHED: esbuild disabled for Deno",
   },
   { name: "config loading", pattern: "// PATCHED: import for Deno TS support" },
-  { name: "CLI exit handler", pattern: "setTimeout(() => process.exit(0), 50)" },
+  {
+    name: "CLI exit handler",
+    pattern: "setTimeout(() => process.exit(0), 50)",
+  },
 ];
 
 // Non-critical patches (may not be present in all versions)
@@ -122,7 +126,8 @@ const OPTIONAL_PATCHES = [
   },
   {
     name: "supportsColor2 stub",
-    pattern: "// PATCHED: Return color level 3 (truecolor) without checking env vars for Deno",
+    pattern:
+      "// PATCHED: Return color level 3 (truecolor) without checking env vars for Deno",
   },
   {
     name: "bufferutil skip",
@@ -149,17 +154,27 @@ const OPTIONAL_PATCHES = [
 ];
 
 // Verify pull schema contains expected PostgreSQL structure
-function verifyPullSchema(content: string): { success: boolean; error?: string } {
+function verifyPullSchema(
+  content: string,
+): { success: boolean; error?: string } {
   // Assert file is non-trivial
   if (content.length < 200) {
-    return { success: false, error: `Schema file too small (${content.length} bytes), expected > 200` };
+    return {
+      success: false,
+      error: `Schema file too small (${content.length} bytes), expected > 200`,
+    };
   }
 
   // Assert it's for PostgreSQL
-  const hasPgImport = content.includes("drizzle-orm/pg-core") && content.includes("pgTable");
+  const hasPgImport = content.includes("drizzle-orm/pg-core") &&
+    content.includes("pgTable");
   const hasSqliteImport = content.includes("sqliteTable");
   if (!hasPgImport || hasSqliteImport) {
-    return { success: false, error: "Schema should import pgTable from drizzle-orm/pg-core, not SQLite" };
+    return {
+      success: false,
+      error:
+        "Schema should import pgTable from drizzle-orm/pg-core, not SQLite",
+    };
   }
 
   // Assert users table with proper structure
@@ -173,7 +188,8 @@ function verifyPullSchema(content: string): { success: boolean; error?: string }
   if (!hasUsersTableDef || !hasIdColumn || !hasNameColumn) {
     return {
       success: false,
-      error: `Users table missing expected structure: tableDef=${hasUsersTableDef}, idCol=${hasIdColumn}, nameCol=${hasNameColumn}`,
+      error:
+        `Users table missing expected structure: tableDef=${hasUsersTableDef}, idCol=${hasIdColumn}, nameCol=${hasNameColumn}`,
     };
   }
 
@@ -187,7 +203,8 @@ function verifyPullSchema(content: string): { success: boolean; error?: string }
   if (!hasPostsTableDef || !hasPostsTitle || !hasPostsUserId) {
     return {
       success: false,
-      error: `Posts table missing expected structure: tableDef=${hasPostsTableDef}, titleCol=${hasPostsTitle}, userIdCol=${hasPostsUserId}`,
+      error:
+        `Posts table missing expected structure: tableDef=${hasPostsTableDef}, titleCol=${hasPostsTitle}, userIdCol=${hasPostsUserId}`,
     };
   }
 
@@ -215,16 +232,32 @@ export const pgsqlConfig: DialectConfig = {
 
   permissions: {
     help: ["--allow-read=.,./node_modules"],
-    generate: ["--allow-env=DATABASE_URL", "--allow-read=.,./node_modules", "--allow-write=./drizzle"],
-    migrate: ["--allow-env=DATABASE_URL", "--allow-read=.,./node_modules", "--allow-write=./data,./drizzle"],
+    generate: [
+      "--allow-env=DATABASE_URL",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./drizzle",
+    ],
+    migrate: [
+      "--allow-env=DATABASE_URL",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data,./drizzle",
+    ],
     verifyMigrate: ["--allow-read=.,./node_modules", "--allow-write=./data"],
-    push: ["--allow-env=DATABASE_URL", "--allow-read=.,./node_modules", "--allow-write=./data-push,./drizzle"],
+    push: [
+      "--allow-env=DATABASE_URL",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data-push,./drizzle",
+    ],
     verifyPush: ["--allow-read=.,./node_modules", "--allow-write=./data-push"],
-    pull: ["--allow-env=DATABASE_URL", "--allow-read=.,./node_modules", "--allow-write=./data-pull,./drizzle-pull"],
+    pull: [
+      "--allow-env=DATABASE_URL",
+      "--allow-read=.,./node_modules",
+      "--allow-write=./data-pull,./drizzle-pull",
+    ],
     setupPullDb: ["--allow-read=.,./node_modules", "--allow-write=./data-pull"],
   },
 
-  patchMarker: "DRIZZLE-KIT-DENO-PATCHED-V12",
+  patchMarker: "DRIZZLE-KIT-DENO-PATCHED-V14",
   criticalPatches: CRITICAL_PATCHES,
   optionalPatches: OPTIONAL_PATCHES,
 

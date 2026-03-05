@@ -1,14 +1,16 @@
-#!/usr/bin/env -S deno run --allow-read --allow-write --allow-env --allow-ffi
+#!/usr/bin/env -S deno run --allow-read --allow-write --allow-env
 
 /**
- * Verify SQLite/LibSQL database schema matches expected structure.
+ * Verify SQLite database schema matches expected structure.
+ * Uses node:sqlite directly (available in Deno 2.x and Node.js 22+)
  */
 
-import { createClient } from "@libsql/client/node";
+// @ts-types="npm:@types/node"
+import { DatabaseSync } from "node:sqlite";
 
 function usage(): never {
   console.error(
-    "Usage: deno run --allow-read --allow-write --allow-ffi scripts/verify-db-sqlite.ts [--db ./data.db] [--table users] [--columns id,name] [--skip-migrations]",
+    "Usage: deno run --allow-read --allow-write scripts/node-sqlite/verify-db.ts [--db ./data.db] [--table users] [--columns id,name] [--skip-migrations]",
   );
   Deno.exit(2);
 }
@@ -36,19 +38,17 @@ const expectedColumns = columnsCsv
   .map((s) => s.trim())
   .filter(Boolean);
 
-// Create libsql client for local file
-const client = createClient({
-  url: `file:${dbPath}`,
-});
+// Open database using node:sqlite
+const db = new DatabaseSync(dbPath);
 
 // Table existence via sqlite_master
-const tablesRes = await client.execute(
+const tablesStmt = db.prepare(
   "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name",
 );
-const tables = tablesRes.rows.map((row) => String(row.name));
+const tablesRows = tablesStmt.all() as Array<{ name: string }>;
+const tables = tablesRows.map((row) => String(row.name));
 
 if (!tables.includes(table)) {
-  client.close();
   fail(
     "❌ Expected table " +
       table +
@@ -58,12 +58,12 @@ if (!tables.includes(table)) {
 }
 
 // Column existence via PRAGMA table_info
-const colsRes = await client.execute(`PRAGMA table_info(${table})`);
-const cols = colsRes.rows.map((row) => String(row.name));
+const colsStmt = db.prepare(`PRAGMA table_info(${table})`);
+const colsRows = colsStmt.all() as Array<{ name: string }>;
+const cols = colsRows.map((row) => String(row.name));
 
 for (const expected of expectedColumns) {
   if (!cols.includes(expected)) {
-    client.close();
     fail(
       `❌ Expected column "${expected}" in table ${table}; found: ${
         cols.join(", ")
@@ -75,23 +75,24 @@ for (const expected of expectedColumns) {
 // Check migrations table if not skipped
 if (!skipMigrations) {
   if (!tables.includes("__drizzle_migrations")) {
-    client.close();
     fail(
       "❌ Expected __drizzle_migrations table to exist (use --skip-migrations to skip this check)",
     );
   }
 
-  const migrationsRes = await client.execute(
+  const migrationsStmt = db.prepare(
     "SELECT COUNT(*) as count FROM __drizzle_migrations",
   );
-  const migrationCount = Number(migrationsRes.rows[0]?.count ?? 0);
+  const migrationsResult = migrationsStmt.get() as
+    | { count: number }
+    | undefined;
+  const migrationCount = Number(migrationsResult?.count ?? 0);
   if (migrationCount === 0) {
-    client.close();
     fail("❌ Expected at least one migration in __drizzle_migrations");
   }
   console.log(`✅ Found ${migrationCount} migration(s)`);
 }
 
-client.close();
+db.close();
 console.log(`✅ Verified DB schema: table=${table}, columns=${cols.join(",")}`);
 Deno.exit(0);

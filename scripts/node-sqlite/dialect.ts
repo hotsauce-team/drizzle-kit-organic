@@ -1,5 +1,6 @@
 /**
- * SQLite/LibSQL dialect configuration for drizzle-kit patch tests.
+ * Node SQLite dialect configuration for drizzle-kit patch tests.
+ * Uses node:sqlite via @hotsauce/drizzle-runtime-sqlite
  */
 
 import type { DialectConfig } from "../shared/types.ts";
@@ -83,23 +84,21 @@ function verifyPullSchema(
   return { success: true };
 }
 
-export const libsqlConfig: DialectConfig = {
-  name: "libsql",
-  displayName: "SQLite/LibSQL",
-  testDir: ".test-patch-sqlite",
+export const nodeSqliteConfig: DialectConfig = {
+  name: "node-sqlite",
+  displayName: "Node SQLite",
+  testDir: ".test-patch-node-sqlite",
 
-  dependencies: {
-    "@libsql/client": "npm:@libsql/client@^0.14.0",
-    libsql: "npm:libsql@^0.4.7",
-  },
+  // No runtime dependencies - code is extracted from JSR at patch time
+  dependencies: {},
 
   schemaTs,
   configTs,
   pushConfigTs,
   pullConfigTs,
-  verifyDbPath: "scripts/libsql/verify-db.ts",
+  verifyDbPath: "scripts/node-sqlite/verify-db.ts",
 
-  // No setupPullDbTs - libsql uses push as prerequisite for pull
+  // No setupPullDbTs - node-sqlite uses push as prerequisite for pull
 
   dirs: ["drizzle", "drizzle-pull"],
 
@@ -108,44 +107,33 @@ export const libsqlConfig: DialectConfig = {
     generate: ["--allow-read=.,./node_modules", "--allow-write=./drizzle"],
     migrate: [
       "--allow-env",
-      "--allow-sys=cpus,networkInterfaces,hostname",
       "--allow-read=.,./node_modules",
-      "--allow-write=./data.db,./data.db-journal,./drizzle",
-      "--allow-ffi=./node_modules/.deno",
+      "--allow-write=./data.db,./data.db-journal,./data.db-wal,./drizzle",
     ],
     verifyMigrate: [
       "--allow-env",
-      "--allow-sys=cpus,networkInterfaces,hostname",
       "--allow-read=.,./node_modules",
-      "--allow-write=./data.db,./data.db-journal",
-      "--allow-ffi=./node_modules/.deno",
+      "--allow-write=./data.db,./data.db-journal,./data.db-wal",
     ],
     push: [
       "--allow-env",
-      "--allow-sys=cpus,networkInterfaces,hostname",
       "--allow-read=.,./node_modules",
-      "--allow-write=./data-push.db,./data-push.db-journal,./drizzle",
-      "--allow-ffi=./node_modules/.deno",
+      "--allow-write=./data-push.db,./data-push.db-journal,./data-push.db-wal,./drizzle",
     ],
     verifyPush: [
       "--allow-env",
-      "--allow-sys=cpus,networkInterfaces,hostname",
       "--allow-read=.,./node_modules",
-      "--allow-write=./data-push.db,./data-push.db-journal",
-      "--allow-ffi=./node_modules/.deno",
+      "--allow-write=./data-push.db,./data-push.db-journal,./data-push.db-wal",
     ],
     pull: [
       "--allow-env",
-      "--allow-sys=cpus,networkInterfaces,hostname",
       "--allow-read=.,./node_modules",
-      "--allow-write=./drizzle-pull",
-      "--allow-ffi=./node_modules/.deno",
+      "--allow-write=./data-push.db,./data-push.db-journal,./data-push.db-wal,./drizzle-pull",
     ],
   },
 
-  env: { LIBSQL_JS_NODE: "1" },
-
-  // No patch verification for libsql (pgsql handles that)
+  // Use node:sqlite via the SQLITE_NODE env var
+  env: { SQLITE_NODE: "1" },
 
   verifyArgs: {
     migrate: ["--db", "./data.db"],

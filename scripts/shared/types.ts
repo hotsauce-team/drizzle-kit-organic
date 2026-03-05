@@ -3,7 +3,13 @@
  */
 
 // Available command tests
-export const AVAILABLE_TESTS = ["help", "generate", "migrate", "push", "pull"] as const;
+export const AVAILABLE_TESTS = [
+  "help",
+  "generate",
+  "migrate",
+  "push",
+  "pull",
+] as const;
 export type TestName = (typeof AVAILABLE_TESTS)[number];
 
 // Supported drizzle-kit versions
@@ -39,7 +45,7 @@ export interface IndependentTestResult {
  */
 export interface DialectConfig {
   /** Unique identifier for the dialect */
-  name: "pgsql" | "libsql";
+  name: "pgsql" | "libsql" | "node-sqlite";
 
   /** Human-readable name for display */
   displayName: string;

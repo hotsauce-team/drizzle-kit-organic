@@ -1,6 +1,6 @@
 /**
  * Generic test runner for drizzle-kit patch tests.
- * 
+ *
  * This module provides a dialect-agnostic test runner that executes
  * the same test flow for any database dialect (PostgreSQL, SQLite/LibSQL, etc).
  */
@@ -9,11 +9,11 @@ import { walk } from "@std/fs/walk";
 import { parseArgs } from "@std/cli/parse-args";
 import type {
   DialectConfig,
-  StepResult,
-  TestResult,
-  TestContext,
   IndependentTestResult,
+  StepResult,
+  TestContext,
   TestName,
+  TestResult,
 } from "./types.ts";
 import { AVAILABLE_TESTS, SUPPORTED_VERSIONS } from "./types.ts";
 
@@ -25,7 +25,8 @@ const TIMEOUT_MS = 120_000; // 2 minutes per version
 
 export async function runCommand(
   cmd: string[],
-  options: { cwd?: string; timeout?: number; env?: Record<string, string> } = {}
+  options: { cwd?: string; timeout?: number; env?: Record<string, string> } =
+    {},
 ): Promise<{ success: boolean; stdout: string; stderr: string; code: number }> {
   const { cwd = Deno.cwd(), timeout = 60_000, env } = options;
 
@@ -72,7 +73,7 @@ function createTestContext(): TestContext {
 
 async function setupTestEnvironment(
   config: DialectConfig,
-  version: string
+  version: string,
 ): Promise<string> {
   const versionDir = `${config.testDir}/drizzle-kit-${version}`;
 
@@ -98,14 +99,20 @@ async function setupTestEnvironment(
 
   await Deno.writeTextFile(
     `${versionDir}/deno.jsonc`,
-    JSON.stringify(denoConfig, null, 2)
+    JSON.stringify(denoConfig, null, 2),
   );
 
   // Create schema, config files
   await Deno.writeTextFile(`${versionDir}/schema.ts`, config.schemaTs);
   await Deno.writeTextFile(`${versionDir}/drizzle.config.ts`, config.configTs);
-  await Deno.writeTextFile(`${versionDir}/drizzle-push.config.ts`, config.pushConfigTs);
-  await Deno.writeTextFile(`${versionDir}/drizzle-pull.config.ts`, config.pullConfigTs);
+  await Deno.writeTextFile(
+    `${versionDir}/drizzle-push.config.ts`,
+    config.pushConfigTs,
+  );
+  await Deno.writeTextFile(
+    `${versionDir}/drizzle-pull.config.ts`,
+    config.pullConfigTs,
+  );
 
   // Create required directories
   for (const dir of config.dirs) {
@@ -137,7 +144,11 @@ async function copyPatchScript(testDir: string): Promise<StepResult> {
   try {
     const patchScript = await Deno.readTextFile("scripts/patch-drizzle-kit.ts");
     await Deno.mkdir(`${testDir}/scripts`, { recursive: true });
-    await Deno.writeTextFile(`${testDir}/scripts/patch-drizzle-kit.ts`, patchScript);
+    await Deno.writeTextFile(
+      `${testDir}/scripts/patch-drizzle-kit.ts`,
+      patchScript,
+    );
+
     return { name: "Copy patch script", success: true };
   } catch (error) {
     return {
@@ -157,19 +168,20 @@ async function runPatchScript(testDir: string): Promise<StepResult> {
       "--allow-write=./node_modules",
       "./scripts/patch-drizzle-kit.ts",
     ],
-    { cwd: testDir, timeout: 30_000 }
+    { cwd: testDir, timeout: 30_000 },
   );
 
   const output = result.stdout + result.stderr;
-  const success =
-    result.success &&
+  const success = result.success &&
     (output.includes("Patched drizzle-kit successfully") ||
       output.includes("already patched"));
 
   return {
     name: "Apply patch",
     success,
-    error: success ? undefined : result.stderr || "Patch did not complete successfully",
+    error: success
+      ? undefined
+      : result.stderr || "Patch did not complete successfully",
     output: result.stdout,
   };
 }
@@ -180,13 +192,15 @@ async function runPatchScript(testDir: string): Promise<StepResult> {
 
 async function verifyPatchMarker(
   testDir: string,
-  marker: string
+  marker: string,
 ): Promise<StepResult> {
   try {
-    for await (const entry of walk(`${testDir}/node_modules`, {
-      match: [/drizzle-kit.*\/bin\.cjs$/],
-      maxDepth: 6,
-    })) {
+    for await (
+      const entry of walk(`${testDir}/node_modules`, {
+        match: [/drizzle-kit.*\/bin\.cjs$/],
+        maxDepth: 6,
+      })
+    ) {
       if (entry.isFile) {
         const content = await Deno.readTextFile(entry.path);
         const hasMarker = content.includes(marker);
@@ -214,13 +228,15 @@ async function verifyPatchMarker(
 async function verifyAllPatches(
   testDir: string,
   criticalPatches: Array<{ name: string; pattern: string }>,
-  optionalPatches: Array<{ name: string; pattern: string }>
+  optionalPatches: Array<{ name: string; pattern: string }>,
 ): Promise<StepResult> {
   try {
-    for await (const entry of walk(`${testDir}/node_modules`, {
-      match: [/drizzle-kit.*\/bin\.cjs$/],
-      maxDepth: 6,
-    })) {
+    for await (
+      const entry of walk(`${testDir}/node_modules`, {
+        match: [/drizzle-kit.*\/bin\.cjs$/],
+        maxDepth: 6,
+      })
+    ) {
       if (entry.isFile) {
         const content = await Deno.readTextFile(entry.path);
 
@@ -249,14 +265,19 @@ async function verifyAllPatches(
             name: "Verify all patches applied",
             success: false,
             error: `Missing critical patches: ${missingCritical.join(", ")}`,
-            output: `Found: ${foundPatches.join(", ")}\nMissing optional: ${missingOptional.join(", ")}`,
+            output: `Found: ${foundPatches.join(", ")}\nMissing optional: ${
+              missingOptional.join(", ")
+            }`,
           };
         }
 
         return {
           name: "Verify all patches applied",
           success: true,
-          output: `Critical: ${criticalPatches.length}/${criticalPatches.length}, Optional: ${optionalPatches.length - missingOptional.length}/${optionalPatches.length}`,
+          output:
+            `Critical: ${criticalPatches.length}/${criticalPatches.length}, Optional: ${
+              optionalPatches.length - missingOptional.length
+            }/${optionalPatches.length}`,
         };
       }
     }
@@ -280,38 +301,51 @@ async function verifyAllPatches(
 
 async function testDrizzleKitHelp(
   testDir: string,
-  config: DialectConfig
+  config: DialectConfig,
 ): Promise<StepResult> {
   const result = await runCommand(
-    ["deno", "run", ...config.permissions.help, "./node_modules/drizzle-kit/bin.cjs", "--help"],
-    { cwd: testDir, timeout: 30_000 }
+    [
+      "deno",
+      "run",
+      ...config.permissions.help,
+      "./node_modules/drizzle-kit/bin.cjs",
+      "--help",
+    ],
+    { cwd: testDir, timeout: 30_000 },
   );
 
   const output = result.stdout + result.stderr;
-  const hasHelpOutput =
-    output.includes("drizzle-kit") &&
-    (output.includes("generate") || output.includes("push") || output.includes("pull"));
+  const hasHelpOutput = output.includes("drizzle-kit") &&
+    (output.includes("generate") || output.includes("push") ||
+      output.includes("pull"));
 
   return {
     name: "Test drizzle-kit --help",
     success: result.success && hasHelpOutput,
-    error: result.success && hasHelpOutput ? undefined : result.stderr || "Help output not as expected",
+    error: result.success && hasHelpOutput
+      ? undefined
+      : result.stderr || "Help output not as expected",
     output: output.slice(0, 500),
   };
 }
 
 async function testDrizzleKitGenerate(
   testDir: string,
-  config: DialectConfig
+  config: DialectConfig,
 ): Promise<StepResult> {
   const result = await runCommand(
-    ["deno", "run", ...config.permissions.generate, "./node_modules/drizzle-kit/bin.cjs", "generate"],
-    { cwd: testDir, timeout: 60_000, env: config.env }
+    [
+      "deno",
+      "run",
+      ...config.permissions.generate,
+      "./node_modules/drizzle-kit/bin.cjs",
+      "generate",
+    ],
+    { cwd: testDir, timeout: 60_000, env: config.env },
   );
 
   const output = result.stdout + result.stderr;
-  const success =
-    output.includes("No schema changes") ||
+  const success = output.includes("No schema changes") ||
     output.includes("migrations generated") ||
     output.includes("Your schema file") ||
     (result.success && !output.includes("error"));
@@ -326,11 +360,17 @@ async function testDrizzleKitGenerate(
 
 async function testDrizzleKitMigrate(
   testDir: string,
-  config: DialectConfig
+  config: DialectConfig,
 ): Promise<StepResult> {
   const result = await runCommand(
-    ["deno", "run", ...config.permissions.migrate, "./node_modules/drizzle-kit/bin.cjs", "migrate"],
-    { cwd: testDir, timeout: 60_000, env: config.env }
+    [
+      "deno",
+      "run",
+      ...config.permissions.migrate,
+      "./node_modules/drizzle-kit/bin.cjs",
+      "migrate",
+    ],
+    { cwd: testDir, timeout: 60_000, env: config.env },
   );
 
   const output = result.stdout + result.stderr;
@@ -347,11 +387,17 @@ async function testDrizzleKitMigrate(
 async function verifyDatabaseSchema(
   testDir: string,
   config: DialectConfig,
-  args: string[]
+  args: string[],
 ): Promise<StepResult> {
   const result = await runCommand(
-    ["deno", "run", ...config.permissions.verifyMigrate, "./verify-db.ts", ...args],
-    { cwd: testDir, timeout: 30_000, env: config.env }
+    [
+      "deno",
+      "run",
+      ...config.permissions.verifyMigrate,
+      "./verify-db.ts",
+      ...args,
+    ],
+    { cwd: testDir, timeout: 30_000, env: config.env },
   );
 
   const output = result.stdout + result.stderr;
@@ -360,14 +406,16 @@ async function verifyDatabaseSchema(
   return {
     name: "Verify migrated DB schema",
     success,
-    error: success ? undefined : result.stderr || "DB schema verification failed",
+    error: success
+      ? undefined
+      : result.stderr || "DB schema verification failed",
     output: output.slice(0, 500),
   };
 }
 
 async function testDrizzleKitPush(
   testDir: string,
-  config: DialectConfig
+  config: DialectConfig,
 ): Promise<StepResult> {
   const result = await runCommand(
     [
@@ -379,7 +427,7 @@ async function testDrizzleKitPush(
       "--config=drizzle-push.config.ts",
       "--force",
     ],
-    { cwd: testDir, timeout: 60_000, env: config.env }
+    { cwd: testDir, timeout: 60_000, env: config.env },
   );
 
   return {
@@ -393,11 +441,17 @@ async function testDrizzleKitPush(
 async function verifyPushDatabaseSchema(
   testDir: string,
   config: DialectConfig,
-  args: string[]
+  args: string[],
 ): Promise<StepResult> {
   const result = await runCommand(
-    ["deno", "run", ...config.permissions.verifyPush, "./verify-db.ts", ...args],
-    { cwd: testDir, timeout: 30_000, env: config.env }
+    [
+      "deno",
+      "run",
+      ...config.permissions.verifyPush,
+      "./verify-db.ts",
+      ...args,
+    ],
+    { cwd: testDir, timeout: 30_000, env: config.env },
   );
 
   const output = result.stdout + result.stderr;
@@ -406,14 +460,16 @@ async function verifyPushDatabaseSchema(
   return {
     name: "Verify push DB schema",
     success,
-    error: success ? undefined : result.stderr || "Push DB schema verification failed",
+    error: success
+      ? undefined
+      : result.stderr || "Push DB schema verification failed",
     output: output.slice(0, 500),
   };
 }
 
 async function testDrizzleKitPull(
   testDir: string,
-  config: DialectConfig
+  config: DialectConfig,
 ): Promise<StepResult> {
   const result = await runCommand(
     [
@@ -424,7 +480,7 @@ async function testDrizzleKitPull(
       "pull",
       "--config=drizzle-pull.config.ts",
     ],
-    { cwd: testDir, timeout: 60_000, env: config.env }
+    { cwd: testDir, timeout: 60_000, env: config.env },
   );
 
   return {
@@ -437,7 +493,7 @@ async function testDrizzleKitPull(
 
 async function verifyPullSchema(
   testDir: string,
-  config: DialectConfig
+  config: DialectConfig,
 ): Promise<StepResult> {
   const pullDir = `${testDir}/drizzle-pull`;
 
@@ -447,12 +503,16 @@ async function verifyPullSchema(
       entries.push(entry.name);
     }
 
-    const schemaFile = entries.find((e) => e.endsWith(".ts") && e.includes("schema"));
+    const schemaFile = entries.find((e) =>
+      e.endsWith(".ts") && e.includes("schema")
+    );
     if (!schemaFile) {
       return {
         name: "Verify pull schema",
         success: false,
-        error: `Expected schema file in drizzle-pull/, found: ${entries.join(", ") || "<empty>"}`,
+        error: `Expected schema file in drizzle-pull/, found: ${
+          entries.join(", ") || "<empty>"
+        }`,
       };
     }
 
@@ -463,7 +523,9 @@ async function verifyPullSchema(
       name: "Verify pull schema",
       success: result.success,
       error: result.error,
-      output: result.success ? `Found ${entries.length} file(s): ${entries.join(", ")}` : content.slice(0, 500),
+      output: result.success
+        ? `Found ${entries.length} file(s): ${entries.join(", ")}`
+        : content.slice(0, 500),
     };
   } catch (e) {
     return {
@@ -481,7 +543,7 @@ async function verifyPullSchema(
 async function runHelpTest(
   testDir: string,
   config: DialectConfig,
-  _ctx: TestContext
+  _ctx: TestContext,
 ): Promise<IndependentTestResult> {
   const steps: StepResult[] = [];
 
@@ -501,7 +563,7 @@ async function runHelpTest(
 async function runGenerateTest(
   testDir: string,
   config: DialectConfig,
-  ctx: TestContext
+  ctx: TestContext,
 ): Promise<IndependentTestResult> {
   const steps: StepResult[] = [];
 
@@ -522,7 +584,7 @@ async function runGenerateTest(
 async function runMigrateTest(
   testDir: string,
   config: DialectConfig,
-  ctx: TestContext
+  ctx: TestContext,
 ): Promise<IndependentTestResult> {
   const steps: StepResult[] = [];
 
@@ -548,7 +610,11 @@ async function runMigrateTest(
 
   // Verify DB schema
   console.log("🔎 Verifying migrated DB schema...");
-  const verifyDbResult = await verifyDatabaseSchema(testDir, config, config.verifyArgs.migrate);
+  const verifyDbResult = await verifyDatabaseSchema(
+    testDir,
+    config,
+    config.verifyArgs.migrate,
+  );
   steps.push(verifyDbResult);
 
   if (!verifyDbResult.success) {
@@ -564,7 +630,7 @@ async function runMigrateTest(
 async function runPushTest(
   testDir: string,
   config: DialectConfig,
-  ctx: TestContext
+  ctx: TestContext,
 ): Promise<IndependentTestResult> {
   const steps: StepResult[] = [];
 
@@ -580,7 +646,11 @@ async function runPushTest(
 
   // Verify push DB schema
   console.log("🔎 Verifying push DB schema...");
-  const verifyPushDbResult = await verifyPushDatabaseSchema(testDir, config, config.verifyArgs.push);
+  const verifyPushDbResult = await verifyPushDatabaseSchema(
+    testDir,
+    config,
+    config.verifyArgs.push,
+  );
   steps.push(verifyPushDbResult);
 
   if (!verifyPushDbResult.success) {
@@ -596,23 +666,30 @@ async function runPushTest(
 async function runPullTest(
   testDir: string,
   config: DialectConfig,
-  ctx: TestContext
+  ctx: TestContext,
 ): Promise<IndependentTestResult> {
   const steps: StepResult[] = [];
 
   // Setup pull DB if config provides setup script
   if (config.setupPullDbTs && config.permissions.setupPullDb) {
     console.log("📋 Creating DB schema (raw SQL)...");
-    await Deno.writeTextFile(`${testDir}/setup-pull-db.ts`, config.setupPullDbTs);
+    await Deno.writeTextFile(
+      `${testDir}/setup-pull-db.ts`,
+      config.setupPullDbTs,
+    );
 
     const result = await runCommand(
       ["deno", "run", ...config.permissions.setupPullDb, "./setup-pull-db.ts"],
-      { cwd: testDir, timeout: 60_000, env: config.env }
+      { cwd: testDir, timeout: 60_000, env: config.env },
     );
 
     if (!result.success) {
       return {
-        steps: [{ name: "Setup pull DB", success: false, error: result.stderr }],
+        steps: [{
+          name: "Setup pull DB",
+          success: false,
+          error: result.stderr,
+        }],
         success: false,
       };
     }
@@ -656,7 +733,7 @@ async function runPullTest(
 type TestRunner = (
   testDir: string,
   config: DialectConfig,
-  ctx: TestContext
+  ctx: TestContext,
 ) => Promise<IndependentTestResult>;
 
 const TEST_RUNNERS: Record<TestName, TestRunner> = {
@@ -674,7 +751,7 @@ const TEST_RUNNERS: Record<TestName, TestRunner> = {
 async function testVersion(
   config: DialectConfig,
   version: string,
-  options: { quick?: boolean; tests?: TestName[] } = {}
+  options: { quick?: boolean; tests?: TestName[] } = {},
 ): Promise<TestResult> {
   const startTime = Date.now();
   const steps: StepResult[] = [];
@@ -728,7 +805,12 @@ async function testVersion(
     steps.push(markerResult);
     if (!markerResult.success) {
       console.log(`  ❌ Failed: ${markerResult.error}`);
-      return { version, steps, duration: Date.now() - startTime, success: false };
+      return {
+        version,
+        steps,
+        duration: Date.now() - startTime,
+        success: false,
+      };
     }
     console.log("  ✓ Patch marker verified");
   }
@@ -739,7 +821,7 @@ async function testVersion(
     const allPatchesResult = await verifyAllPatches(
       testDir,
       config.criticalPatches,
-      config.optionalPatches || []
+      config.optionalPatches || [],
     );
     steps.push(allPatchesResult);
     if (!allPatchesResult.success) {
@@ -747,7 +829,12 @@ async function testVersion(
       if (allPatchesResult.output) {
         console.log(`  ${allPatchesResult.output}`);
       }
-      return { version, steps, duration: Date.now() - startTime, success: false };
+      return {
+        version,
+        steps,
+        duration: Date.now() - startTime,
+        success: false,
+      };
     }
     console.log(`  ✓ All patches verified (${allPatchesResult.output})`);
   }
@@ -777,7 +864,9 @@ async function testVersion(
 
   const duration = Date.now() - startTime;
   console.log(
-    `\n✅ drizzle-kit@${version} passed all tests (${(duration / 1000).toFixed(1)}s)`
+    `\n✅ drizzle-kit@${version} passed all tests (${
+      (duration / 1000).toFixed(1)
+    }s)`,
   );
 
   return { version, steps, duration, success: true };
@@ -809,7 +898,9 @@ export async function runTests(config: DialectConfig) {
 drizzle-kit Patch Test Suite (${config.displayName})
 
 Usage:
-  deno task test:${config.name === "pgsql" ? "pglite" : "libsql"} [options] [versions...]
+  deno task test:${
+      config.name === "pgsql" ? "pglite" : "libsql"
+    } [options] [versions...]
 
 Options:
   --quick, -q        Quick test (only verify patch applies, skip runtime tests)
@@ -825,10 +916,18 @@ Available Tests:
   pull      Test schema introspection
 
 Examples:
-  deno task test:${config.name === "pgsql" ? "pglite" : "libsql"}                    # Test all supported versions
-  deno task test:${config.name === "pgsql" ? "pglite" : "libsql"} 0.30.6             # Test a specific version
-  deno task test:${config.name === "pgsql" ? "pglite" : "libsql"} --quick            # Quick test all versions
-  deno task test:${config.name === "pgsql" ? "pglite" : "libsql"} --test=push        # Run only push test
+  deno task test:${
+      config.name === "pgsql" ? "pglite" : "libsql"
+    }                    # Test all supported versions
+  deno task test:${
+      config.name === "pgsql" ? "pglite" : "libsql"
+    } 0.30.6             # Test a specific version
+  deno task test:${
+      config.name === "pgsql" ? "pglite" : "libsql"
+    } --quick            # Quick test all versions
+  deno task test:${
+      config.name === "pgsql" ? "pglite" : "libsql"
+    } --test=push        # Run only push test
 `);
     Deno.exit(0);
   }
@@ -836,8 +935,12 @@ Examples:
   // Parse --test option
   let testsToRun: TestName[] | undefined;
   if (args.test) {
-    const requestedTests = args.test.split(",").map((t: string) => t.trim().toLowerCase());
-    const invalidTests = requestedTests.filter((t: string) => !AVAILABLE_TESTS.includes(t as TestName));
+    const requestedTests = args.test.split(",").map((t: string) =>
+      t.trim().toLowerCase()
+    );
+    const invalidTests = requestedTests.filter((t: string) =>
+      !AVAILABLE_TESTS.includes(t as TestName)
+    );
     if (invalidTests.length > 0) {
       console.error(`❌ Invalid test(s): ${invalidTests.join(", ")}`);
       console.error(`   Available: ${AVAILABLE_TESTS.join(", ")}`);
@@ -861,18 +964,27 @@ Examples:
   }
 
   console.log("╔════════════════════════════════════════════════════════════╗");
-  console.log(`║        drizzle-kit Patch Test Suite (${config.displayName.padEnd(17)}) ║`);
+  console.log(
+    `║        drizzle-kit Patch Test Suite (${
+      config.displayName.padEnd(17)
+    }) ║`,
+  );
   console.log("╚════════════════════════════════════════════════════════════╝");
   console.log(`\nVersions to test: ${versionsToTest.join(", ")}`);
   if (testsToRun) {
     console.log(`Tests to run: ${testsToRun.join(", ")}`);
   }
-  console.log(`Mode: ${args.quick ? "Quick (patch only)" : "Full (patch + runtime)"}`);
+  console.log(
+    `Mode: ${args.quick ? "Quick (patch only)" : "Full (patch + runtime)"}`,
+  );
 
   const results: TestResult[] = [];
 
   for (const version of versionsToTest) {
-    const result = await testVersion(config, version, { quick: args.quick, tests: testsToRun });
+    const result = await testVersion(config, version, {
+      quick: args.quick,
+      tests: testsToRun,
+    });
     results.push(result);
   }
 
@@ -904,7 +1016,9 @@ Examples:
   }
 
   console.log("\n" + "─".repeat(60));
-  console.log(`Total: ${results.length} | Passed: ${passed.length} | Failed: ${failed.length}`);
+  console.log(
+    `Total: ${results.length} | Passed: ${passed.length} | Failed: ${failed.length}`,
+  );
 
   // Cleanup unless --keep flag
   if (!args.keep) {

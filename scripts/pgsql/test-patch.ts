@@ -2,7 +2,7 @@
 
 /**
  * PostgreSQL (PGlite) test suite entry point.
- * 
+ *
  * Usage:
  *   deno task test:pglite                    # Test all supported versions
  *   deno task test:pglite 0.30.6             # Test a specific version

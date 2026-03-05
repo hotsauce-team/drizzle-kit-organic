@@ -2,7 +2,7 @@
 
 /**
  * SQLite/LibSQL test suite entry point.
- * 
+ *
  * Usage:
  *   deno task test:libsql                    # Test all supported versions
  *   deno task test:libsql 0.30.6             # Test a specific version
